@@ -10,8 +10,8 @@ export async function signIn(email: string, password: string) {
     .eq('auth_id', data.user.id)
     .single()
   // Update last login
-  if (profile) {
-    await supabase.from('users').update({ last_login: new Date().toISOString() }).eq('id', profile.id)
+  if (profile) {    
+    await (supabase.from('users') as any).update({ last_login: new Date().toISOString() }).eq('id', (profile as any).id)
   }
   return { session: data.session, user: data.user, profile }
 }
