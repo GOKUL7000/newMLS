@@ -104,9 +104,9 @@ function SettingsContent({ section }: { section: string }) {
     return (
       <div className="space-y-3">
         {logs.map((l,i)=>(
-          <div key={i} className={}>
+          <div key={i} className={`flex items-center gap-3 text-xs font-mono p-2 rounded ${l.level==='ERROR'?'bg-red-50':l.level==='WARN'?'bg-yellow-50':'bg-gray-50'}`}>
             <span className="text-gray-400 flex-shrink-0">{l.time}</span>
-            <span className={}>{l.level}</span>
+            <span className={`flex items-center gap-3 text-xs font-mono p-2 rounded ${l.level==='ERROR'?'bg-red-50':l.level==='WARN'?'bg-yellow-50':'bg-gray-50'}`}>{l.level}</span>
             <span className="text-gray-400 flex-shrink-0">[{l.src}]</span>
             <span className="text-gray-700">{l.msg}</span>
           </div>

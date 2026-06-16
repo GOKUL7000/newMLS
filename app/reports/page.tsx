@@ -245,7 +245,7 @@ export default function ReportsPage() {
               <tbody>
                 {expCat.map((c,i) => (
                   <tr key={i} className="border-b border-gray-50">
-                    <td className="py-2"><div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{backgroundColor:c.color}}></div>{c.name}</td>
+                    <td className="py-2"><div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full" style={{backgroundColor:c.color}}></div>{c.name}</div></td>
                     <td className="py-2 text-right text-gray-700">{c.value.toLocaleString('en-IN')}</td>
                     <td className="py-2 text-right text-gray-600">{c.pct}</td>
                   </tr>
