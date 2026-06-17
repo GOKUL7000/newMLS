@@ -153,7 +153,7 @@ export async function getCountByStatus(table: string, statusColumn = 'status') {
   if (error) throw error
   const counts: Record<string, number> = {}
   for (const row of (data || [])) {
-    const s = (row as Record<string, string>)[statusColumn]
+    const s = (row as unknown as Record<string, string>)[statusColumn]
     counts[s] = (counts[s] || 0) + 1
   }
   return counts
