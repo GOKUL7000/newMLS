@@ -34,9 +34,9 @@ const nav = [
   ]},
   { icon: Truck, label: 'Fleet / Trucks', href: '/fleet', children: [
     { label: 'All Vehicles', href: '/fleet' },
-    { label: 'Available Vehicles', href: '/fleet/available' },
-    { label: 'Running Vehicles', href: '/fleet/running' },
-    { label: 'Idle Vehicles', href: '/fleet/idle' },
+    // { label: 'Available Vehicles', href: '/fleet/available' },
+    // { label: 'Running Vehicles', href: '/fleet/running' },
+    // { label: 'Idle Vehicles', href: '/fleet/idle' },
     { label: 'Maintenance Due', href: '/fleet/maintenance-due' },
     { label: 'Insurance Due', href: '/fleet/insurance-due' },
     { label: 'Permit Due', href: '/fleet/permit-due' },
