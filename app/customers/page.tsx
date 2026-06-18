@@ -390,12 +390,13 @@ export default function CustomersPage() {
         {/* Stats */}
         <div className="grid grid-cols-6 gap-3">
           {[
-            { label: 'Total Customers', value: String(stats.totalCustomers), sub: 'All Customers', color: 'text-blue-600' },
-            { label: 'Active Customers', value: String(stats.activeCustomers), sub: `${stats.totalCustomers ? Math.round(stats.activeCustomers / stats.totalCustomers * 100) : 0}% of Total`, color: 'text-green-600' },
-            { label: 'Outstanding Amount', value: fmt(stats.outstandingAmount), sub: `From ${stats.outstandingCustomers} Customers`, color: 'text-orange-500' },
-            { label: 'Received This Month', value: '₹ 28,75,000', sub: 'From 45 Customers', color: 'text-green-600' },
-            { label: 'Invoices This Month', value: '68', sub: 'Total Invoices', color: 'text-blue-600' },
+            { label: 'Total Active Customers', value: String(stats.activeCustomers), sub: 'All Customers', color: 'text-blue-600' },
             { label: 'Revenue This Month', value: '₹ 85,00,000', sub: 'Total Revenue', color: 'text-green-600' },
+            { label: 'Invoice This Month', value: '₹ 85,00,000', sub: `From 45 Customers`, color: 'text-green-600' },
+            { label: 'Received This Month', value: '₹ 28,75,000', sub: 'From 45 Customers', color: 'text-green-600' },
+            { label: 'Outstanding Amount', value: fmt(stats.outstandingAmount), sub: `From ${stats.outstandingCustomers} Customers`, color: 'text-orange-500' },            
+            { label: 'Invoices This Month', value: '68', sub: 'Total Invoices', color: 'text-blue-600' },
+            
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
               <p className="text-[10px] text-gray-400">{c.label}</p>

@@ -5,11 +5,14 @@ import Topbar from '@/components/layout/Topbar';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import {
   Plus, Search, X, Loader2, CheckCircle2, XCircle,
-  ChevronLeft, ChevronRight, Eye, Pencil, Trash2,
-  ArrowRight, Truck,
+  ChevronLeft, ChevronRight, Pencil, Trash2,
+  ArrowRight, Truck, Upload, ExternalLink,
 } from 'lucide-react';
 
 const supabase = createClientComponentClient();
+const TRIP_BUCKET = 'Trips';
+
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Trip {
@@ -61,12 +64,11 @@ interface Trip {
   vehicle_no?: string;
   driver_name?: string;
   supplier_name?: string;
-  trip_cost:number | null;
- 
-tds_type: string | null;
-tds_value: number | null;
-tds_amount: number | null;
-trip_charges: number | null;
+  trip_cost: number | null;
+  tds_type: string | null;
+  tds_value: number | null;
+  tds_amount: number | null;
+  trip_charges: number | null;
 }
 
 interface DropItem { id: string; label: string; }
@@ -166,23 +168,17 @@ export default function TripsPage() {
   const [page, setPage] = useState(1);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Dropdowns
   const [customers, setCustomers] = useState<DropItem[]>([]);
-  const [vehicles, setVehicles] = useState<DropItem[]>([]);
   const [myTruckVehicles, setMyTruckVehicles] = useState<DropItem[]>([]);
   const [markerVehicles, setMarkerVehicles] = useState<DropItem[]>([]);
   const [drivers, setDrivers] = useState<DropItem[]>([]);
   const [suppliers, setSuppliers] = useState<DropItem[]>([]);
 
-  // Modal
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-
-  // Selected trip for details panel
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
 
-  // Form
   const emptyForm = {
     trip_date: new Date().toISOString().split('T')[0],
     customer_id: '', vehicle_id: '', ownership: 'My Truck' as 'My Truck' | 'Marker Truck',
@@ -191,11 +187,11 @@ export default function TripsPage() {
     bill_type: 'Fixed', freight_amount: '', rate: '', total_tonnage: '',
     supplier_bill_type: 'Fixed', supplier_rate: '', supplier_tonnage: '',
     lr_no: '', material: '', notes: '', status: 'Pending',
-    trip_cost:'',
+    trip_cost: '',
     tds_type: 'Percentage',
     tds_value: '',
-    trip_charges:''
-,  };
+    trip_charges: '',
+  };
   const [form, setForm] = useState(emptyForm);
 
   // ── Toast ──────────────────────────────────────────────────────────────────
@@ -214,27 +210,19 @@ export default function TripsPage() {
       supabase.from('drivers').select('id, name').eq('status', 'Active').eq('deleted', false),
       supabase.from('suppliers').select('id, name').eq('status', 'Active').eq('deleted', false),
     ]);
-    
     setCustomers((c.data || []).map(x => ({ id: x.id, label: x.name })));
-    setVehicles((v.data || []).map(x => ({ id: x.id, label: x.vehicle_no, ownership: x.ownership } as any)));
     setMyTruckVehicles((v.data || []).filter((x: any) => x.ownership === 'My Truck').map(x => ({ id: x.id, label: x.vehicle_no })));
     setMarkerVehicles((v.data || []).filter((x: any) => x.ownership === 'Marker Truck').map(x => ({ id: x.id, label: x.vehicle_no })));
     setDrivers((d.data || []).map(x => ({ id: x.id, label: x.name })));
     setSuppliers((s.data || []).map(x => ({ id: x.id, label: x.name })));
   }, []);
 
-  // ── Fetch trips with joins ─────────────────────────────────────────────────
+  // ── Fetch trips ────────────────────────────────────────────────────────────
   const fetchTrips = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('trips')
-      .select(`
-        *,
-        customers(name),
-        vehicles(vehicle_no),
-        drivers(name),
-        suppliers(name)
-      `)
+      .select(`*, customers(name), vehicles(vehicle_no), drivers(name), suppliers(name)`)
       .eq('deleted', false)
       .order('created_at', { ascending: false });
 
@@ -264,7 +252,7 @@ export default function TripsPage() {
     return `TRP${String(max + 1).padStart(3, '0')}`;
   };
 
-  // ── Computed freight ───────────────────────────────────────────────────────
+  // ── Computed values ────────────────────────────────────────────────────────
   const computedFreight = form.bill_type === 'Fixed'
     ? parseFloat(form.freight_amount || '0')
     : (parseFloat(form.rate || '0') * parseFloat(form.total_tonnage || '0'));
@@ -273,25 +261,19 @@ export default function TripsPage() {
     ? parseFloat(form.freight_amount || '0')
     : (parseFloat(form.supplier_rate || '0') * parseFloat(form.supplier_tonnage || '0'));
 
-      form.tds_type === 'Percentage'
-    ? (computedFreight * parseFloat(form.tds_value || '0')) / 100
-    : form.tds_type === 'Fixed'
-    ? parseFloat(form.tds_value || '0')
-    : parseFloat(form.tds_value || '0') * parseFloat(form.total_tonnage || '0');
+  const computedTdsAmount =
+    form.tds_type === 'Percentage'
+      ? (computedFreight * parseFloat(form.tds_value || '0')) / 100
+      : form.tds_type === 'Fixed'
+      ? parseFloat(form.tds_value || '0')
+      : parseFloat(form.tds_value || '0') * parseFloat(form.total_tonnage || '0');
 
-   const computedTdsAmount =
-  form.tds_type === 'Percentage'
-    ? (computedFreight * parseFloat(form.tds_value || '0')) / 100
-    : form.tds_type === 'Fixed'
-    ? parseFloat(form.tds_value || '0')
-    : parseFloat(form.tds_value || '0') * parseFloat(form.total_tonnage || '0');
-
-const computedProfit =
-  computedFreight -
-  computedSupplierAmount +
-  parseFloat(form.trip_cost || '0') +
-   parseFloat(form.trip_charges || '0') +
-  computedTdsAmount;
+  const computedProfit =
+    computedFreight -
+    computedSupplierAmount -
+    parseFloat(form.trip_cost || '0') -
+    parseFloat(form.trip_charges || '0') -
+    computedTdsAmount;
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -321,11 +303,10 @@ const computedProfit =
       notes: form.notes || null,
       status: form.status,
       trip_cost: parseFloat(form.trip_cost || '0'),
-
-        tds_type: form.tds_type,
-        tds_value: parseFloat(form.tds_value || '0'),
-        tds_amount: computedTdsAmount,
-        trip_charges: parseFloat(form.trip_charges || '0'),
+      tds_type: form.tds_type,
+      tds_value: parseFloat(form.tds_value || '0'),
+      tds_amount: computedTdsAmount,
+      trip_charges: parseFloat(form.trip_charges || '0'),
     };
 
     if (editId) {
@@ -357,12 +338,10 @@ const computedProfit =
       supplier_tonnage: String(t.supplier_tonnage || ''),
       lr_no: t.lr_no || '', material: t.material || '',
       notes: t.notes || '', status: t.status,
-      trip_cost:String(t.trip_cost || '0'),
+      trip_cost: String(t.trip_cost || '0'),
       tds_type: t.tds_type || 'Percentage',
-       tds_value: String(t.tds_value || ''),
-      
-       trip_charges: String(t.trip_charges || ''),
-
+      tds_value: String(t.tds_value || ''),
+      trip_charges: String(t.trip_charges || ''),
     });
     setActiveTab(0); setShowModal(true);
   };
@@ -411,7 +390,6 @@ const computedProfit =
   const fmtMoney = (n: number | null) => n ? `₹ ${Number(n).toLocaleString('en-IN')}` : '₹ 0';
 
   const MODAL_TABS = ['Trip Info', 'Billing', 'Supplier Billing'];
-
   const vehicleOptions = form.ownership === 'My Truck' ? myTruckVehicles : markerVehicles;
 
   return (
@@ -424,12 +402,12 @@ const computedProfit =
         {/* Stats */}
         <div className="grid grid-cols-6 gap-3">
           {[
-            { label: 'Total Trips', value: stats.total, color: 'text-blue-600', sub: 'All Time' },
-            { label: 'Active Trips', value: stats.active, color: 'text-green-600', sub: 'In Progress' },
-            { label: 'Pending', value: stats.pending, color: 'text-gray-500', sub: 'Not Started' },
-            { label: 'Completed', value: stats.completed, color: 'text-teal-600', sub: 'Trip Done' },
-            { label: 'Settled', value: stats.settled, color: 'text-green-700', sub: 'Fully Settled' },
-            { label: 'Total Freight', value: `₹ ${(stats.totalFreight / 100000).toFixed(1)}L`, color: 'text-blue-600', sub: 'Billed Amount' },
+            { label: 'Total Trips',    value: stats.total,                                            color: 'text-blue-600',  sub: 'All Time' },
+            { label: 'Active Trips',   value: stats.active,                                           color: 'text-green-600', sub: 'In Progress' },
+            { label: 'Pending',        value: stats.pending,                                          color: 'text-gray-500',  sub: 'Not Started' },
+            { label: 'Completed',      value: stats.completed,                                        color: 'text-teal-600',  sub: 'Trip Done' },
+            { label: 'Settled',        value: stats.settled,                                          color: 'text-green-700', sub: 'Fully Settled' },
+            { label: 'Total Freight',  value: `₹ ${(stats.totalFreight / 100000).toFixed(1)}L`,       color: 'text-blue-600',  sub: 'Billed Amount' },
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
               <p className="text-[10px] text-gray-400">{c.label}</p>
@@ -527,7 +505,7 @@ const computedProfit =
               </div>
             )}
 
-            {/* ── Trip Detail Panel ── */}
+            {/* Trip Detail Panel */}
             {selectedTrip && (
               <TripDetailPanel
                 trip={selectedTrip}
@@ -568,7 +546,6 @@ const computedProfit =
               )}
             </div>
 
-            {/* Filter panel */}
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <h3 className="text-[12px] font-semibold text-gray-700 mb-2">Quick Filters</h3>
               <div className="space-y-1">
@@ -600,7 +577,6 @@ const computedProfit =
               <button onClick={() => setShowModal(false)}><X size={16} className="text-gray-400" /></button>
             </div>
 
-            {/* Tabs */}
             <div className="flex border-b border-gray-100 px-5">
               {MODAL_TABS.map((t, i) => (
                 <button key={t} onClick={() => setActiveTab(i)}
@@ -626,7 +602,6 @@ const computedProfit =
                     </select>
                   </Field>
 
-                  {/* Ownership toggle */}
                   <div className="col-span-2">
                     <label className="text-[11px] text-gray-500 block mb-2">Vehicle Ownership *</label>
                     <div className="flex gap-3">
@@ -715,99 +690,57 @@ const computedProfit =
                     </>
                   )}
 
-                    <div className=''>
-                     <Field label="Trip Cost (₹)" span2>
-                        <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
-                      </Field>
-                      <Field label=" Charges (₹)">
-                        <input
-                          type="number"
-                          value={form.trip_charges}
-                          onChange={f('trip_charges')}
-                          placeholder="0"
-                          className={inputCls}
-                        />
-                      </Field>
-                      </div>
-                      <div>
-                      <Field label="TDS Type">
-                        <select
-                          value={form.tds_type}
-                          onChange={f('tds_type')}
-                          className={inputCls}
-                        >
-                          <option value="Percentage">Percentage</option>
-                          <option value="Fixed">Fixed</option>
-                          <option value="Per Ton">Per Ton</option>
-                        </select>
-                      </Field>
-
-                   
-
-                      <Field
-                        label={
-                          form.tds_type === 'Percentage'
-                            ? 'TDS (%)'
-                            : form.tds_type === 'Fixed'
-                            ? 'TDS Amount (₹)'
-                            : 'TDS Per Ton (₹)'
-                        }
-                      >
-                        <input
-                          type="number"
-                          value={form.tds_value}
-                          onChange={f('tds_value')}
-                          placeholder="0"
-                          className={inputCls}
-                        />
-                      </Field>
-
-                      </div>
-                    
-                    <div className="col-span-2 bg-green-50 rounded-lg px-4 py-3 border border-green-100">
-                      <p className="text-[11px] text-gray-500 mb-1">Profit Estimate</p>
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">Customer Freight</span>
-                        <span className="font-semibold text-blue-600">₹ {computedFreight.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">Supplier Cost</span>
-                        <span className="font-semibold text-red-500">₹ {computedSupplierAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">Trip Cost</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500"> Charges</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}
-                        </span>
+                  {form.ownership === 'My Truck' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 col-span-2">
+                        <Field label="Trip Cost (₹)">
+                          <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
+                        </Field>
+                        <Field label="Charges (₹)">
+                          <input type="number" value={form.trip_charges} onChange={f('trip_charges')} placeholder="0" className={inputCls} />
+                        </Field>
+                        <Field label="TDS Type">
+                          <select value={form.tds_type} onChange={f('tds_type')} className={inputCls}>
+                            <option value="Percentage">Percentage</option>
+                            <option value="Fixed">Fixed</option>
+                          </select>
+                        </Field>
+                        <Field label={form.tds_type === 'Percentage' ? 'TDS (%)' : 'TDS Amount (₹)'}>
+                          <input type="number" value={form.tds_value} onChange={f('tds_value')} placeholder="0" className={inputCls} />
+                        </Field>
                       </div>
 
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">TDS</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {computedTdsAmount.toLocaleString('en-IN')}
-                        </span>
+                      <div className="col-span-2 bg-green-50 rounded-lg px-4 py-3 border border-green-100">
+                        <p className="text-[11px] text-gray-500 mb-1">Profit Estimate</p>
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-gray-500">Customer Freight</span>
+                          <span className="font-semibold text-blue-600">₹ {computedFreight.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-gray-500">Trip Cost</span>
+                          <span className="font-semibold text-red-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-gray-500">Charges</span>
+                          <span className="font-semibold text-red-500">₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-gray-500">TDS</span>
+                          <span className="font-semibold text-red-500">₹ {computedTdsAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between text-[12px] border-t border-green-200 mt-2 pt-2">
+                          <span className="font-semibold text-gray-700">Est. Profit</span>
+                          <span className={`font-bold ${computedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            ₹ {computedProfit.toLocaleString('en-IN')}
+                          </span>
+                        </div>
                       </div>
-                      
-                      <div className="flex justify-between text-[12px] border-t border-green-200 mt-1 pt-1">
-                        <span className="font-semibold text-gray-700">Est. Profit</span>
-                        <span className={`font-bold ${computedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                         ₹ {computedProfit.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-
-                
+                    </>
+                  )}
+                </div>
               )}
 
-              {/* Tab 2 – Supplier Billing (Market Truck only) */}
+              {/* Tab 2 – Supplier Billing */}
               {activeTab === 2 && (
                 form.ownership === 'Marker Truck' ? (
                   <div className="grid grid-cols-2 gap-3">
@@ -821,7 +754,6 @@ const computedProfit =
                       <Field label="Supplier Amount (₹)" span2>
                         <input type="number" value={form.freight_amount} onChange={f('freight_amount')} placeholder="0" className={inputCls} />
                       </Field>
-                      
                     ) : (
                       <>
                         <Field label={`Supplier Rate (₹ / ${(form.supplier_bill_type || '').replace('Per ', '')})`}>
@@ -837,55 +769,23 @@ const computedProfit =
                       </>
                     )}
 
-                    <div className=''>
-                     <Field label="Trip Cost (₹)" span2>
-                        <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
-                      </Field>
-                      <Field label=" Charges (₹)">
-                        <input
-                          type="number"
-                          value={form.trip_charges}
-                          onChange={f('trip_charges')}
-                          placeholder="0"
-                          className={inputCls}
-                        />
-                      </Field>
-                      </div>
-                      <div>
-                      <Field label="TDS Type">
-                        <select
-                          value={form.tds_type}
-                          onChange={f('tds_type')}
-                          className={inputCls}
-                        >
-                          <option value="Percentage">Percentage</option>
-                          <option value="Fixed">Fixed</option>
-                          <option value="Per Ton">Per Ton</option>
-                        </select>
-                      </Field>
+                    <Field label="Trip Cost (₹)">
+                      <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
+                    </Field>
+                    <Field label="Charges (₹)">
+                      <input type="number" value={form.trip_charges} onChange={f('trip_charges')} placeholder="0" className={inputCls} />
+                    </Field>
+                    <Field label="TDS Type">
+                      <select value={form.tds_type} onChange={f('tds_type')} className={inputCls}>
+                        <option value="Percentage">Percentage</option>
+                        <option value="Fixed">Fixed</option>
+                        <option value="Per Ton">Per Ton</option>
+                      </select>
+                    </Field>
+                    <Field label={form.tds_type === 'Percentage' ? 'TDS (%)' : form.tds_type === 'Fixed' ? 'TDS Amount (₹)' : 'TDS Per Ton (₹)'}>
+                      <input type="number" value={form.tds_value} onChange={f('tds_value')} placeholder="0" className={inputCls} />
+                    </Field>
 
-                   
-
-                      <Field
-                        label={
-                          form.tds_type === 'Percentage'
-                            ? 'TDS (%)'
-                            : form.tds_type === 'Fixed'
-                            ? 'TDS Amount (₹)'
-                            : 'TDS Per Ton (₹)'
-                        }
-                      >
-                        <input
-                          type="number"
-                          value={form.tds_value}
-                          onChange={f('tds_value')}
-                          placeholder="0"
-                          className={inputCls}
-                        />
-                      </Field>
-
-                      </div>
-                    
                     <div className="col-span-2 bg-green-50 rounded-lg px-4 py-3 border border-green-100">
                       <p className="text-[11px] text-gray-500 mb-1">Profit Estimate</p>
                       <div className="flex justify-between text-[12px]">
@@ -898,28 +798,20 @@ const computedProfit =
                       </div>
                       <div className="flex justify-between text-[12px]">
                         <span className="text-gray-500">Trip Cost</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}
-                        </span>
+                        <span className="font-semibold text-red-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500"> Charges</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}
-                        </span>
+                        <span className="text-gray-500">Charges</span>
+                        <span className="font-semibold text-red-500">₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}</span>
                       </div>
-
                       <div className="flex justify-between text-[12px]">
                         <span className="text-gray-500">TDS</span>
-                        <span className="font-semibold text-blue-500">
-                          ₹ {computedTdsAmount.toLocaleString('en-IN')}
-                        </span>
+                        <span className="font-semibold text-red-500">₹ {computedTdsAmount.toLocaleString('en-IN')}</span>
                       </div>
-                      
                       <div className="flex justify-between text-[12px] border-t border-green-200 mt-1 pt-1">
                         <span className="font-semibold text-gray-700">Est. Profit</span>
                         <span className={`font-bold ${computedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                         ₹ {computedProfit.toLocaleString('en-IN')}
+                          ₹ {computedProfit.toLocaleString('en-IN')}
                         </span>
                       </div>
                     </div>
@@ -961,7 +853,7 @@ const computedProfit =
   );
 }
 
-// ─── Trip Detail Panel (inline below table) ───────────────────────────────────
+// ─── Trip Detail Panel ────────────────────────────────────────────────────────
 function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }: {
   trip: Trip;
   onClose: () => void;
@@ -974,13 +866,60 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   const [expenses, setExpenses] = useState<any[]>([]);
   const [expLoading, setExpLoading] = useState(false);
   const [showExpModal, setShowExpModal] = useState(false);
-  const [expForm, setExpForm] = useState({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '' });
+  const [expForm, setExpForm] = useState({
+    expense_date: new Date().toISOString().split('T')[0],
+    category: 'Diesel', amount: '', paid_by: 'Company', notes: '',
+  });
   const [statusSaving, setStatusSaving] = useState(false);
-  const [uploadingStep, setUploadingStep] = useState(false);
-  const [stepForm, setStepForm] = useState<Record<string, string>>({});
+  const [stepForm, setStepForm] = useState<Record<string, string | number>>({});
+  const [showStepModal, setShowStepModal] = useState(false);
+  const [pendingNext, setPendingNext] = useState<{ key: string; label: string } | null>(null);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const SECTIONS = ['Overview', 'Pipeline', 'Expenses', 'Financials'];
 
+  // ── Step config ────────────────────────────────────────────────────────────
+  const STEP_CONFIG: Record<string, { kmField: string; kmLabel: string; docField: string; docLabel: string }> = {
+    Started: {
+      kmField: 'start_km', kmLabel: 'Start KM Reading',
+      docField: 'start_km_doc', docLabel: 'Start KM Photo',
+    },
+    Loading: {
+      kmField: 'loading_km', kmLabel: 'Loading KM Reading',
+      docField: 'loading_km_doc', docLabel: 'Loading KM Photo',
+    },
+    Unloading: {
+      kmField: 'unloading_km', kmLabel: 'Unloading KM Reading',
+      docField: 'unloading_photo', docLabel: 'Unloading Photo',
+    },
+    TripCompleted: {
+      kmField: 'end_km', kmLabel: 'End KM Reading',
+      docField: 'end_km_photo', docLabel: 'End KM Photo',
+    },
+    POPReceived: {
+      kmField: '', kmLabel: '',
+      docField: 'pop_doc', docLabel: 'POP Document',
+    },
+  };
+
+  // ── Upload helper ──────────────────────────────────────────────────────────
+  const uploadStepFile = async (file: File, field: string): Promise<string | null> => {
+    setUploadingField(field);
+    const ext = file.name.split('.').pop();
+    const path = `${trip.trip_no}/${field}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from(TRIP_BUCKET).upload(path, file, { upsert: true });
+    setUploadingField(null);
+    if (error) { toast('error', `Upload failed: ${error.message}`); return null; }
+    return path;
+  };
+
+  const openStepDoc = async (path: string) => {
+    const { data, error } = await supabase.storage.from(TRIP_BUCKET).createSignedUrl(path, 3600);
+    if (error || !data?.signedUrl) { toast('error', 'Could not open document'); return; }
+    window.open(data.signedUrl, '_blank');
+  };
+
+  // ── Fetch expenses ─────────────────────────────────────────────────────────
   const fetchExpenses = useCallback(async () => {
     setExpLoading(true);
     const { data } = await supabase.from('trip_expenses').select('*').eq('trip_id', trip.id).order('expense_date');
@@ -993,38 +932,63 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
   const profit = (trip.freight_amount || 0) - (trip.supplier_amount || 0) - totalExpenses;
 
-  // Advance to next status
+  // ── Next status ────────────────────────────────────────────────────────────
   const nextStatus = () => {
     const idx = PIPELINE.findIndex(p => p.key === trip.status);
     return idx < PIPELINE.length - 1 ? PIPELINE[idx + 1] : null;
   };
 
+  // ── Advance status ─────────────────────────────────────────────────────────
   const advanceStatus = async () => {
     const next = nextStatus();
     if (!next) return;
+    if (STEP_CONFIG[next.key]) {
+      setPendingNext(next);
+      setStepForm({});
+      setShowStepModal(true);
+      return;
+    }
     setStatusSaving(true);
-
-    const updates: Record<string, any> = { status: next.key };
-    // Auto-set timestamps
-    if (next.key === 'Started') updates.start_date = new Date().toISOString();
-    if (next.key === 'Loading') updates.loading_date = new Date().toISOString();
-    if (next.key === 'Unloading') updates.unloading_date = new Date().toISOString();
-    if (next.key === 'TripCompleted') updates.end_date = new Date().toISOString();
-    if (next.key === 'POPReceived') updates.pop_received_date = new Date().toISOString();
-    if (next.key === 'POPSubmitted') updates.pop_submitted_date = new Date().toISOString();
-
-    const { error } = await supabase.from('trips').update(updates).eq('id', trip.id);
+    const { error } = await supabase.from('trips').update({ status: next.key }).eq('id', trip.id);
     if (error) toast('error', 'Failed: ' + error.message);
     else { toast('success', `Status → ${next.label}`); onRefresh(); }
     setStatusSaving(false);
   };
 
+  const confirmStepAdvance = async () => {
+    if (!pendingNext) return;
+    setStatusSaving(true);
+
+    const updates: Record<string, any> = { status: pendingNext.key, ...stepForm };
+    if (pendingNext.key === 'Started')       updates.start_date        = new Date().toISOString();
+    if (pendingNext.key === 'Loading')       updates.loading_date      = new Date().toISOString();
+    if (pendingNext.key === 'Unloading')     updates.unloading_date    = new Date().toISOString();
+    if (pendingNext.key === 'TripCompleted') updates.end_date          = new Date().toISOString();
+    if (pendingNext.key === 'POPReceived')   updates.pop_received_date = new Date().toISOString();
+
+    if (pendingNext.key === 'TripCompleted' && stepForm.end_km && trip.start_km) {
+      updates.total_km = Number(stepForm.end_km) - Number(trip.start_km);
+    }
+
+    const { error } = await supabase.from('trips').update(updates).eq('id', trip.id);
+    if (error) toast('error', 'Failed: ' + error.message);
+    else {
+      toast('success', `Status → ${pendingNext.label}`);
+      setShowStepModal(false);
+      setPendingNext(null);
+      onRefresh();
+    }
+    setStatusSaving(false);
+  };
+
+  // ── Step data save (pipeline tab) ──────────────────────────────────────────
   const saveStepData = async () => {
     const { error } = await supabase.from('trips').update(stepForm).eq('id', trip.id);
     if (error) toast('error', 'Save failed: ' + error.message);
     else { toast('success', 'Saved'); onRefresh(); setStepForm({}); }
   };
 
+  // ── Expense helpers ────────────────────────────────────────────────────────
   const saveExpense = async () => {
     const { error } = await supabase.from('trip_expenses').insert({
       trip_id: trip.id,
@@ -1035,7 +999,12 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
       notes: expForm.notes || null,
     });
     if (error) toast('error', 'Failed: ' + error.message);
-    else { toast('success', 'Expense added'); setShowExpModal(false); fetchExpenses(); setExpForm({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '' }); }
+    else {
+      toast('success', 'Expense added');
+      setShowExpModal(false);
+      fetchExpenses();
+      setExpForm({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '' });
+    }
   };
 
   const deleteExpense = async (id: string) => {
@@ -1043,12 +1012,13 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
     fetchExpenses();
   };
 
-  const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[12px] focus:outline-none focus:border-blue-400";
+  const panelInputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[12px] focus:outline-none focus:border-blue-400";
   const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtMoney = (n: number | null | undefined) => `₹ ${Number(n || 0).toLocaleString('en-IN')}`;
 
   return (
     <div className="mt-4 border border-blue-100 rounded-xl bg-blue-50/30 overflow-hidden">
+
       {/* Panel Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-blue-100">
         <div className="flex items-center gap-3">
@@ -1062,7 +1032,6 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLOR[trip.status]}`}>{trip.status}</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Advance button */}
           {nextStatus() && (
             <button onClick={advanceStatus} disabled={statusSaving}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[11px] font-medium hover:bg-blue-700 disabled:opacity-60">
@@ -1153,14 +1122,14 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
           </div>
         )}
 
-        {/* PIPELINE — step-by-step KM/doc entry */}
+        {/* PIPELINE */}
         {activeSection === 'Pipeline' && (
           <div className="space-y-3">
             {[
-              { key: 'Started',       label: 'Start Trip',      fields: [{ f: 'start_km', l: 'Start KM Reading', type: 'number' }] },
-              { key: 'Loading',       label: 'Loading',         fields: [{ f: 'loading_km', l: 'Loading KM Reading', type: 'number' }] },
-              { key: 'Unloading',     label: 'Unloading',       fields: [{ f: 'unloading_km', l: 'Unloading KM Reading', type: 'number' }] },
-              { key: 'TripCompleted', label: 'Trip Completed',  fields: [{ f: 'end_km', l: 'End KM Reading', type: 'number' }] },
+              { key: 'Started',       label: 'Start Trip',     fields: [{ f: 'start_km',     l: 'Start KM Reading',    type: 'number' }] },
+              { key: 'Loading',       label: 'Loading',        fields: [{ f: 'loading_km',   l: 'Loading KM Reading',  type: 'number' }] },
+              { key: 'Unloading',     label: 'Unloading',      fields: [{ f: 'unloading_km', l: 'Unloading KM Reading',type: 'number' }] },
+              { key: 'TripCompleted', label: 'Trip Completed', fields: [{ f: 'end_km',       l: 'End KM Reading',      type: 'number' }] },
             ].map(step => {
               const pIdx = PIPELINE.findIndex(p => p.key === trip.status);
               const sIdx = PIPELINE.findIndex(p => p.key === step.key);
@@ -1168,8 +1137,7 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               return (
                 <div key={step.key} className={`border rounded-lg p-3 ${isPast ? 'border-green-200 bg-green-50/30' : 'border-gray-100 bg-white'}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold
-                      ${isPast ? 'bg-green-500' : 'bg-gray-200'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-bold ${isPast ? 'bg-green-500' : 'bg-gray-200'}`}>
                       {isPast ? '✓' : '○'}
                     </div>
                     <p className="text-[12px] font-semibold text-gray-700">{step.label}</p>
@@ -1182,7 +1150,7 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                         <input type={field.type}
                           defaultValue={(trip as any)[field.f] || ''}
                           onChange={e => setStepForm(prev => ({ ...prev, [field.f]: e.target.value }))}
-                          className={inputCls} />
+                          className={panelInputCls} />
                       </div>
                     ))}
                   </div>
@@ -1193,11 +1161,16 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               );
             })}
 
-            {/* POP */}
             <div className={`border rounded-lg p-3 ${['POPReceived','POPSubmitted','GenerateInvoice','Settled'].includes(trip.status) ? 'border-green-200 bg-green-50/30' : 'border-gray-100 bg-white'}`}>
               <p className="text-[12px] font-semibold text-gray-700 mb-1">POP (Proof of Payment)</p>
               <p className="text-[10px] text-gray-400">Received: {trip.pop_received_date ? fmtDate(trip.pop_received_date) : '—'}</p>
               <p className="text-[10px] text-gray-400">Submitted: {trip.pop_submitted_date ? fmtDate(trip.pop_submitted_date) : '—'}</p>
+              {trip.pop_doc && (
+                <button onClick={() => openStepDoc(trip.pop_doc!)}
+                  className="mt-1 flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
+                  <ExternalLink size={10} /> View POP Document
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1247,7 +1220,6 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               </table>
             )}
 
-            {/* Add Expense Modal */}
             {showExpModal && (
               <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center">
                 <div className="bg-white rounded-xl shadow-2xl w-80 p-5">
@@ -1257,23 +1229,23 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                   </div>
                   <div className="space-y-3">
                     <div><label className="text-[11px] text-gray-500 block mb-1">Date</label>
-                      <input type="date" value={expForm.expense_date} onChange={e => setExpForm(p => ({ ...p, expense_date: e.target.value }))} className={inputCls} />
+                      <input type="date" value={expForm.expense_date} onChange={e => setExpForm(p => ({ ...p, expense_date: e.target.value }))} className={panelInputCls} />
                     </div>
                     <div><label className="text-[11px] text-gray-500 block mb-1">Category</label>
-                      <select value={expForm.category} onChange={e => setExpForm(p => ({ ...p, category: e.target.value }))} className={inputCls}>
+                      <select value={expForm.category} onChange={e => setExpForm(p => ({ ...p, category: e.target.value }))} className={panelInputCls}>
                         {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
                       </select>
                     </div>
                     <div><label className="text-[11px] text-gray-500 block mb-1">Amount (₹)</label>
-                      <input type="number" value={expForm.amount} onChange={e => setExpForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" className={inputCls} />
+                      <input type="number" value={expForm.amount} onChange={e => setExpForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" className={panelInputCls} />
                     </div>
                     <div><label className="text-[11px] text-gray-500 block mb-1">Paid By</label>
-                      <select value={expForm.paid_by} onChange={e => setExpForm(p => ({ ...p, paid_by: e.target.value }))} className={inputCls}>
+                      <select value={expForm.paid_by} onChange={e => setExpForm(p => ({ ...p, paid_by: e.target.value }))} className={panelInputCls}>
                         <option>Company</option><option>Driver</option><option>Supplier</option>
                       </select>
                     </div>
                     <div><label className="text-[11px] text-gray-500 block mb-1">Notes</label>
-                      <input value={expForm.notes} onChange={e => setExpForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes" className={inputCls} />
+                      <input value={expForm.notes} onChange={e => setExpForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes" className={panelInputCls} />
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
@@ -1335,6 +1307,104 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
           </div>
         )}
       </div>
+
+      {/* ── Step Advance Modal ── */}
+      {showStepModal && pendingNext && (() => {
+        const cfg = STEP_CONFIG[pendingNext.key];
+        return (
+          <div className="fixed inset-0 bg-black/40 z-[70] flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-96 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-[13px] font-bold text-gray-800">Move to — {pendingNext.label}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">{trip.trip_no} · Enter details before advancing</p>
+                </div>
+                <button onClick={() => setShowStepModal(false)}><X size={15} className="text-gray-400" /></button>
+              </div>
+
+              <div className="space-y-3">
+                {/* KM field */}
+                {cfg.kmField && (
+                  <div>
+                    <label className="text-[11px] text-gray-500 block mb-1">{cfg.kmLabel} *</label>
+                    <input
+                      type="number"
+                      placeholder="Enter KM reading"
+                      value={(stepForm[cfg.kmField] as string) || ''}
+                      onChange={e => setStepForm(p => ({ ...p, [cfg.kmField]: e.target.value }))}
+                      className={panelInputCls}
+                    />
+                  </div>
+                )}
+
+                {/* Doc upload */}
+                <div>
+                  <label className="text-[11px] text-gray-500 block mb-1">{cfg.docLabel}</label>
+                  <div className="flex items-center gap-2">
+                    <label className={`flex-1 flex items-center gap-2 cursor-pointer border border-dashed rounded-lg px-3 py-2 transition-colors
+                      ${uploadingField === cfg.docField ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                      {uploadingField === cfg.docField
+                        ? <Loader2 size={12} className="text-blue-500 animate-spin" />
+                        : <Upload size={12} className="text-gray-400" />}
+                      <span className="text-[11px] text-gray-500 truncate max-w-[200px]">
+                        {uploadingField === cfg.docField
+                          ? 'Uploading…'
+                          : stepForm[cfg.docField]
+                          ? (stepForm[cfg.docField] as string).split('/').pop()
+                          : 'Upload file'}
+                      </span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        disabled={uploadingField !== null}
+                        onChange={async e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const path = await uploadStepFile(file, cfg.docField);
+                          if (path) setStepForm(p => ({ ...p, [cfg.docField]: path }));
+                        }}
+                      />
+                    </label>
+                    {stepForm[cfg.docField] && (
+                      <button
+                        type="button"
+                        onClick={() => openStepDoc(stepForm[cfg.docField] as string)}
+                        className="flex items-center gap-1 px-2 py-1.5 border border-blue-200 bg-blue-50 text-blue-600 rounded-lg text-[11px] hover:bg-blue-100 whitespace-nowrap">
+                        <ExternalLink size={11} /> View
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Total KM preview */}
+                {pendingNext.key === 'TripCompleted' && stepForm.end_km && trip.start_km && (
+                  <div className="bg-blue-50 rounded-lg px-3 py-2 text-[11px]">
+                    <span className="text-gray-500">Total KM: </span>
+                    <span className="font-bold text-blue-600">
+                      {(Number(stepForm.end_km) - Number(trip.start_km)).toLocaleString('en-IN')} KM
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 mt-5">
+                <button
+                  onClick={confirmStepAdvance}
+                  disabled={statusSaving || uploadingField !== null || (!!cfg.kmField && !stepForm[cfg.kmField])}
+                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg text-[12px] font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                  {statusSaving ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+                  Confirm & Move
+                </button>
+                <button
+                  onClick={() => setShowStepModal(false)}
+                  className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-lg text-[12px]">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

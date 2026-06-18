@@ -12,10 +12,11 @@ const supabase = createClientComponentClient();
 const BUCKET = 'Drivers'; // root bucket name in Supabase Storage
 
 // Each doc type goes into its own folder inside the bucket
-const DOC_FOLDER: Record<'license_doc' | 'bank_doc' | 'other_doc', string> = {
+const DOC_FOLDER: Record<'license_doc' | 'bank_doc' | 'other_doc' | 'insurance_doc', string> = {
   license_doc: 'LicenseDoc',
   bank_doc:    'BankDetails',
   other_doc:   'OtherDoc',
+  insurance_doc:  'InsuranceDoc', 
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,6 +43,8 @@ interface Driver {
   emergency_name: string | null;
   emergency_phone: string | null;
   other_doc: string | null;     // storage path
+  insurance_expiry: string | null;   
+  insurance_doc: string | null;      
   deleted: boolean;
   created_at?: string;
 }
@@ -79,7 +82,7 @@ const EMPTY_FORM: FormState = {
   name: '', mobile: '', license_no: '', license_expiry: '', license_doc: '',
   status: 'Active', type: 'Heavy Vehicle', experience: '', city: '', address: '',
   joined_date: '', bank_account_no: '', bank_name: '', gpay_no: '', ifsc_code: '',
-  branch_name: '', bank_doc: '', emergency_name: '', emergency_phone: '', other_doc: '',
+  branch_name: '', bank_doc: '', emergency_name: '', emergency_phone: '', other_doc: '',insurance_expiry: '',  insurance_doc: '',
 };
 
 const TABS = ['Personal', 'License', 'Bank Details', 'Emergency & Docs'];
@@ -209,7 +212,7 @@ export default function DriversPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // uploading state per field
-  const [uploadingField, setUploadingField] = useState<'license_doc' | 'bank_doc' | 'other_doc' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'license_doc' | 'bank_doc' | 'other_doc'  | 'insurance_doc' | null>(null);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const toast = useCallback((type: ToastType, message: string) => {
@@ -238,11 +241,15 @@ export default function DriversPage() {
   const stats = {
     total: drivers.length,
     active: drivers.filter(d => d.status === 'Active').length,
-    onTrip: drivers.filter(d => d.status === 'On Trip').length,
     inactive: drivers.filter(d => d.status === 'Inactive').length,
-    expiring: drivers.filter(d => {
+    licenseExpiring: drivers.filter(d => {
       if (!d.license_expiry) return false;
       const diff = (new Date(d.license_expiry).getTime() - Date.now()) / 86400000;
+      return diff >= 0 && diff <= 30;
+    }).length,
+    insuranceExpiring: drivers.filter(d => {
+      if (!d.insurance_expiry) return false;
+      const diff = (new Date(d.insurance_expiry).getTime() - Date.now()) / 86400000;
       return diff >= 0 && diff <= 30;
     }).length,
   };
@@ -272,7 +279,8 @@ export default function DriversPage() {
       bank_account_no: d.bank_account_no || '', bank_name: d.bank_name || '',
       gpay_no: d.gpay_no || '', ifsc_code: d.ifsc_code || '', branch_name: d.branch_name || '',
       bank_doc: d.bank_doc || '', emergency_name: d.emergency_name || '',
-      emergency_phone: d.emergency_phone || '', other_doc: d.other_doc || '',
+      emergency_phone: d.emergency_phone || '', other_doc: d.other_doc || '', 
+      insurance_expiry: d.insurance_expiry || '',insurance_doc: d.insurance_doc || '',
     });
     setActiveTab(0);
     setShowModal(true);
@@ -281,7 +289,7 @@ export default function DriversPage() {
   // ── Upload file to Supabase Storage ──────────────────────────────────────
   const uploadFile = async (
     file: File,
-    field: 'license_doc' | 'bank_doc' | 'other_doc',
+    field: 'license_doc' | 'bank_doc' | 'other_doc' | 'insurance_doc',
     driverNo: string,
   ): Promise<string | null> => {
     setUploadingField(field);
@@ -298,7 +306,7 @@ export default function DriversPage() {
   // ── Handle file pick (upload immediately, store path in form) ─────────────
   const handleFileChange = async (
     file: File,
-    field: 'license_doc' | 'bank_doc' | 'other_doc',
+    field: 'license_doc' | 'bank_doc' | 'other_doc' | 'insurance_doc',
   ) => {
     // Use existing driver_no for edits, or a temp prefix for new
     const prefix = editId
@@ -349,6 +357,8 @@ export default function DriversPage() {
       emergency_name: form.emergency_name || null,
       emergency_phone: form.emergency_phone || null,
       other_doc: form.other_doc || null,
+      insurance_expiry: form.insurance_expiry || null,
+      insurance_doc: form.insurance_doc || null,
     };
 
     if (editId) {
@@ -399,21 +409,39 @@ export default function DriversPage() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
         {/* Stats */}
-        <div className="grid grid-cols-5 gap-3">
-          {[
-            { label: 'Total Drivers', value: stats.total, sub: 'All Drivers', color: 'text-blue-600' },
-            { label: 'Active', value: stats.active, sub: 'Available', color: 'text-green-600' },
-            { label: 'On Trip', value: stats.onTrip, sub: 'Currently Running', color: 'text-blue-500' },
-            { label: 'Inactive', value: stats.inactive, sub: 'Not Active', color: 'text-gray-500' },
-            { label: 'License Expiring', value: stats.expiring, sub: 'Within 30 Days', color: 'text-red-600' },
-          ].map(c => (
-            <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
-              <p className="text-[10px] text-gray-400">{c.label}</p>
-              <p className={`text-[22px] font-bold ${c.color} mt-0.5`}>{c.value}</p>
-              <p className="text-[10px] text-gray-400">{c.sub}</p>
+          <div className="grid grid-cols-4 gap-3">
+            {/* Box 1: Total Drivers */}
+            <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
+              <p className="text-[10px] text-gray-400">Total Drivers</p>
+              <p className="text-[22px] font-bold text-blue-600 mt-0.5">{stats.total}</p>
+              <p className="text-[10px] text-gray-400">
+                <span className="text-green-500">{stats.active} Active</span>
+                {' · '}
+                <span className="text-gray-400">{stats.inactive} Inactive</span>
+              </p>
             </div>
-          ))}
-        </div>
+
+            {/* Box 2: License Expiring */}
+            <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
+              <p className="text-[10px] text-gray-400">License Expiring</p>
+              <p className="text-[22px] font-bold text-red-500 mt-0.5">{stats.licenseExpiring}</p>
+              <p className="text-[10px] text-gray-400">Within 30 Days</p>
+            </div>
+
+            {/* Box 3: Insurance Expiring */}
+            <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
+              <p className="text-[10px] text-gray-400">Insurance Expiring</p>
+              <p className="text-[22px] font-bold text-orange-500 mt-0.5">{stats.insuranceExpiring}</p>
+              <p className="text-[10px] text-gray-400">Within 30 Days</p>
+            </div>
+
+            {/* Box 4: Driver Salary Paid — placeholder until salary table exists */}
+            <div className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
+              <p className="text-[10px] text-gray-400">Driver Salary Paid</p>
+              <p className="text-[22px] font-bold text-green-600 mt-0.5">₹ 0</p>
+              <p className="text-[10px] text-gray-400">This Month</p>
+            </div>
+          </div>
 
         {/* Table */}
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
@@ -446,7 +474,7 @@ export default function DriversPage() {
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                    {['Driver No','Name','Mobile','License No','License Expiry','Type','Experience','City','Joined','Status','Actions'].map(h => (
+                    {['Driver No','Name','Mobile','License No','License Expiry','Insurance Expiry','Type','Experience','City','Joined','Status','Actions'].map(h => (
                       <th key={h} className="text-left px-2 py-2">{h}</th>
                     ))}
                   </tr>
@@ -462,6 +490,9 @@ export default function DriversPage() {
                         <td className="px-2 py-2 text-gray-500">{d.license_no || '—'}</td>
                         <td className={`px-2 py-2 font-medium ${isExpiringSoon(d.license_expiry) ? 'text-red-500' : 'text-gray-500'}`}>
                           {formatDate(d.license_expiry)}
+                        </td>
+                        <td className={`px-2 py-2 font-medium ${isExpiringSoon(d.insurance_expiry) ? 'text-red-500' : 'text-gray-500'}`}>
+                          {formatDate(d.insurance_expiry)}
                         </td>
                         <td className="px-2 py-2 text-gray-500">{d.type || '—'}</td>
                         <td className="px-2 py-2 text-gray-500">{d.experience || '—'}</td>
@@ -562,14 +593,32 @@ export default function DriversPage() {
               {/* License */}
               {activeTab === 1 && (
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="License Number"><input value={form.license_no || ''} onChange={f('license_no')} placeholder="e.g. TN1234567890" className={inputCls} /></Field>
-                  <Field label="License Expiry Date"><input type="date" value={form.license_expiry || ''} onChange={f('license_expiry')} className={inputCls} /></Field>
+                  <Field label="License Number">
+                    <input value={form.license_no || ''} onChange={f('license_no')} placeholder="e.g. TN1234567890" className={inputCls} />
+                  </Field>
+                  <Field label="License Expiry Date">
+                    <input type="date" value={form.license_expiry || ''} onChange={f('license_expiry')} className={inputCls} />
+                  </Field>
                   <div className="col-span-2">
                     <FileUploadBtn
                       label="License Document"
                       storagePath={form.license_doc}
                       uploading={uploadingField === 'license_doc'}
                       onChange={file => handleFileChange(file, 'license_doc')}
+                    />
+                  </div>
+
+                  {/* ── Insurance ── */}
+                  <Field label="Insurance Expiry Date">
+                    <input type="date" value={form.insurance_expiry || ''} onChange={f('insurance_expiry')} className={inputCls} />
+                  </Field>
+                  <div /> {/* spacer */}
+                  <div className="col-span-2">
+                    <FileUploadBtn
+                      label="Insurance Document"
+                      storagePath={form.insurance_doc}
+                      uploading={uploadingField === 'insurance_doc'}
+                      onChange={file => handleFileChange(file, 'insurance_doc')}
                     />
                   </div>
                 </div>
@@ -665,9 +714,11 @@ export default function DriversPage() {
                 <Row2 a={['City', viewDriver.city]} b={['Joined', formatDate(viewDriver.joined_date)]} />
                 <Row1 label="Address" value={viewDriver.address} />
               </Section>
-              <Section icon={<FileText size={13} />} title="License Details">
-                <Row2 a={['License No', viewDriver.license_no]} b={['Expiry', formatDate(viewDriver.license_expiry)]} />
+              <Section icon={<FileText size={13} />} title="License & Insurance">
+                <Row2 a={['License No', viewDriver.license_no]} b={['License Expiry', formatDate(viewDriver.license_expiry)]} />
                 <DocRow label="License Document" path={viewDriver.license_doc} />
+                <Row1 label="Insurance Expiry" value={formatDate(viewDriver.insurance_expiry)} />
+                <DocRow label="Insurance Document" path={viewDriver.insurance_doc} />
               </Section>
               <Section icon={<CreditCard size={13} />} title="Bank Details">
                 <Row2 a={['Account No', viewDriver.bank_account_no]} b={['Bank', viewDriver.bank_name]} />

@@ -365,14 +365,14 @@ export default function SuppliersPage() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
         {/* Stats */}
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'Total Suppliers', value: String(stats.total), sub: 'All Suppliers', color: 'text-blue-600' },
-            { label: 'Active Suppliers', value: String(stats.active), sub: `${stats.total ? Math.round(stats.active / stats.total * 100) : 0}% of Total`, color: 'text-green-600' },
-            { label: 'Inactive', value: String(stats.total - stats.active), sub: 'Not Active', color: 'text-gray-500' },
+            { label: 'Total Active Suppliers', value: String(stats.active), sub: 'Active Suppliers', color: 'text-blue-600' },
+            { label: 'Invoice This Month', value: '₹ 85,00,000', sub: `From 45 Suppliers`, color: 'text-green-600' },
+            { label: 'Paid This Month', value: '₹ 85,00,000', sub: 'From 45 Suppliers', color: 'text-gray-500' },
             { label: 'Total Payable', value: fmt(stats.totalPayable), sub: 'Outstanding', color: 'text-red-500' },
-            { label: 'Fuel Suppliers', value: String(suppliers.filter(s => s.category === 'Fuel').length), sub: 'Fuel Category', color: 'text-orange-500' },
-            { label: 'Maintenance', value: String(suppliers.filter(s => s.category === 'Maintenance').length), sub: 'Maintenance Category', color: 'text-purple-600' },
+            // { label: 'Fuel Suppliers', value: String(suppliers.filter(s => s.category === 'Fuel').length), sub: 'Fuel Category', color: 'text-orange-500' },
+            // { label: 'Maintenance', value: String(suppliers.filter(s => s.category === 'Maintenance').length), sub: 'Maintenance Category', color: 'text-purple-600' },
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
               <p className="text-[10px] text-gray-400">{c.label}</p>
