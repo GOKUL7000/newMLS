@@ -8,6 +8,7 @@ import {
   User, CreditCard, Phone, FileText, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Loader2, ExternalLink, Building2,
 } from 'lucide-react';
+import PortalUserField from '@/components/PortalUserField';
 
 const supabase = createClientComponentClient();
 const BUCKET = 'Suppliers';
@@ -47,6 +48,9 @@ interface Supplier {
   other_doc: string | null;
   deleted: boolean;
   created_at?: string;
+
+  portal_user_id: string | null;
+  portal_access: boolean;
 }
 
 type FormState = Omit<Supplier, 'id' | 'supplier_no' | 'deleted' | 'created_at'>;
@@ -57,7 +61,7 @@ const EMPTY_FORM: FormState = {
   outstanding: null, status: 'Active',
   gstin: '', pan: '', gst_doc: '', pan_doc: '',
   bank_account_no: '', bank_name: '', gpay_no: '', ifsc_code: '', branch_name: '', bank_doc: '',
-  emergency_name: '', emergency_phone: '', other_doc: '',
+  emergency_name: '', emergency_phone: '', other_doc: '', portal_user_id: '', portal_access: true,
 };
 
 const TABS = ['Basic Info', 'GST & PAN', 'Bank Details', 'Emergency & Docs'];
@@ -266,7 +270,8 @@ export default function SuppliersPage() {
       bank_account_no: s.bank_account_no || '', bank_name: s.bank_name || '',
       gpay_no: s.gpay_no || '', ifsc_code: s.ifsc_code || '', branch_name: s.branch_name || '',
       bank_doc: s.bank_doc || '', emergency_name: s.emergency_name || '',
-      emergency_phone: s.emergency_phone || '', other_doc: s.other_doc || '',
+      emergency_phone: s.emergency_phone || '', other_doc: s.other_doc || '', 
+      portal_user_id: s.portal_user_id || '', portal_access: s.portal_access || true,
     });
     setActiveTab(0);
     setShowModal(true);
@@ -578,6 +583,14 @@ export default function SuppliersPage() {
                   </Field>
                   {/* <Field label="Credit Limit (₹)"><input type="number" value={form.credit_limit || ''} onChange={f('credit_limit')} placeholder="0" className={inputCls} /></Field> */}
                   <Field label="Address"><input value={form.address || ''} onChange={f('address')} placeholder="Full address" className={inputCls} /></Field>
+                  <PortalUserField
+                    role="supplier"
+                    entityId={editId}             // null when adding new, uuid when editing
+                    hasPortalAccess={!!suppliers.find(c => c.id === editId)?.portal_user_id}
+                    toast={toast}
+                    onSuccess={fetchSuppliers}
+                  />
+                
                 </div>
               )}
 

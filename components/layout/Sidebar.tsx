@@ -31,7 +31,7 @@ const nav = [
     { label: 'Completed Trips', href: '/trips/completed' },
     { label: 'Delayed Trips', href: '/trips/delayed' },
     { label: 'Trip History', href: '/trips/history' },
-  ]},
+  ]},  
   { icon: Truck, label: 'Fleet / Trucks', href: '/fleet', children: [
     { label: 'All Vehicles', href: '/fleet' },
     // { label: 'Available Vehicles', href: '/fleet/available' },
@@ -98,6 +98,7 @@ const nav = [
     { label: 'Driver Reports', href: '/reports/driver' },
     { label: 'Custom Reports', href: '/reports/custom' },
   ]},
+  { icon: Receipt, label: 'Invoices', href: '/invoices' },
   { icon: Bell, label: 'Notifications', href: '/notifications' },
   { icon: Shield, label: 'Users', href: '/users', children: [
     { label: 'User List', href: '/users' },

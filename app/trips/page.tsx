@@ -69,6 +69,10 @@ interface Trip {
   tds_value: number | null;
   tds_amount: number | null;
   trip_charges: number | null;
+   charges_type: string;     
+   
+   charges_value: number | null;
+estimated_profit: number | null;
 }
 
 interface DropItem { id: string; label: string; }
@@ -191,6 +195,9 @@ export default function TripsPage() {
     tds_type: 'Percentage',
     tds_value: '',
     trip_charges: '',
+    charges_type: 'Fixed',    
+  charges_value: '',  
+    
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -268,12 +275,25 @@ export default function TripsPage() {
       ? parseFloat(form.tds_value || '0')
       : parseFloat(form.tds_value || '0') * parseFloat(form.total_tonnage || '0');
 
+  const computedChargesAmount =
+  form.charges_type === 'Percentage'
+    ? (computedSupplierAmount * parseFloat(form.charges_value || '0')) / 100
+    : form.charges_type === 'Fixed'
+    ? parseFloat(form.charges_value || '0')
+    : parseFloat(form.charges_value || '0') * parseFloat(form.supplier_tonnage || '0');
+
   const computedProfit =
     computedFreight -
-    computedSupplierAmount -
-    parseFloat(form.trip_cost || '0') -
-    parseFloat(form.trip_charges || '0') -
+    computedSupplierAmount +
+   computedChargesAmount +
+   
     computedTdsAmount;
+
+  const computedProfitMyTruck =
+    computedFreight -
+    computedTdsAmount;
+
+    const finalEstimatedProfit = form.ownership === 'My Truck' ? computedProfitMyTruck : computedProfit;
 
   // ── Save ───────────────────────────────────────────────────────────────────
   const save = async () => {
@@ -307,6 +327,9 @@ export default function TripsPage() {
       tds_value: parseFloat(form.tds_value || '0'),
       tds_amount: computedTdsAmount,
       trip_charges: parseFloat(form.trip_charges || '0'),
+      charges_value : parseFloat(form.charges_value || '0'),
+      charges_type:form.charges_type,
+       estimated_profit: finalEstimatedProfit,
     };
 
     if (editId) {
@@ -342,6 +365,9 @@ export default function TripsPage() {
       tds_type: t.tds_type || 'Percentage',
       tds_value: String(t.tds_value || ''),
       trip_charges: String(t.trip_charges || ''),
+      charges_type: t.charges_type|| 'Fixed',    
+      charges_value: String(t.charges_value || '') , 
+
     });
     setActiveTab(0); setShowModal(true);
   };
@@ -449,7 +475,7 @@ export default function TripsPage() {
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                    {['Trip No','Date','Customer','Vehicle','Route','Material','Freight','Status',''].map(h => (
+                    {['LR No','Date','Customer','Vehicle','Route','Material','Freight','Est. Profit','Status',''].map(h => (
                       <th key={h} className="text-left px-2 py-2 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -462,13 +488,16 @@ export default function TripsPage() {
                         onClick={() => setSelectedTrip(selectedTrip?.id === t.id ? null : t)}
                         className={`border-b border-gray-50 cursor-pointer transition-colors
                           ${selectedTrip?.id === t.id ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                        <td className="px-2 py-2 text-blue-600 font-medium">{t.trip_no}</td>
+                        <td className="px-2 py-2 text-blue-600 font-medium">{t.lr_no}</td>
                         <td className="px-2 py-2 text-gray-500">{fmtDate(t.trip_date)}</td>
                         <td className="px-2 py-2 text-gray-700 font-medium max-w-[120px] truncate">{t.customer_name}</td>
                         <td className="px-2 py-2 text-gray-500">{t.vehicle_no}</td>
                         <td className="px-2 py-2 text-gray-500 max-w-[120px] truncate">{t.origin} → {t.destination}</td>
                         <td className="px-2 py-2 text-gray-400">{t.material || '—'}</td>
                         <td className="px-2 py-2 text-gray-700 font-medium">{fmtMoney(t.freight_amount)}</td>
+                        <td className={`px-2 py-2 font-medium ${Number(t.estimated_profit) >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {fmtMoney(t.estimated_profit)}
+                          </td>
                         <td className="px-2 py-2">
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLOR[t.status] || 'bg-gray-100 text-gray-500'}`}>
                             {t.status}
@@ -693,12 +722,13 @@ export default function TripsPage() {
                   {form.ownership === 'My Truck' && (
                     <>
                       <div className="grid grid-cols-2 gap-3 col-span-2">
-                        <Field label="Trip Cost (₹)">
+
+                        {/* <Field label="Trip Cost (₹)"> 
                           <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
                         </Field>
                         <Field label="Charges (₹)">
                           <input type="number" value={form.trip_charges} onChange={f('trip_charges')} placeholder="0" className={inputCls} />
-                        </Field>
+                        </Field>*/}
                         <Field label="TDS Type">
                           <select value={form.tds_type} onChange={f('tds_type')} className={inputCls}>
                             <option value="Percentage">Percentage</option>
@@ -716,22 +746,24 @@ export default function TripsPage() {
                           <span className="text-gray-500">Customer Freight</span>
                           <span className="font-semibold text-blue-600">₹ {computedFreight.toLocaleString('en-IN')}</span>
                         </div>
+                           {/*
                         <div className="flex justify-between text-[12px]">
                           <span className="text-gray-500">Trip Cost</span>
-                          <span className="font-semibold text-red-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
+                          <span className="font-semibold text-blue-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
                         </div>
-                        <div className="flex justify-between text-[12px]">
+
+                      <div className="flex justify-between text-[12px]">
                           <span className="text-gray-500">Charges</span>
-                          <span className="font-semibold text-red-500">₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}</span>
-                        </div>
+                          <span className="font-semibold text-blue-500">₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}</span>
+                        </div> */}
                         <div className="flex justify-between text-[12px]">
-                          <span className="text-gray-500">TDS</span>
+                          <span className="text-gray-500">Charges (TDS)</span>
                           <span className="font-semibold text-red-500">₹ {computedTdsAmount.toLocaleString('en-IN')}</span>
                         </div>
                         <div className="flex justify-between text-[12px] border-t border-green-200 mt-2 pt-2">
                           <span className="font-semibold text-gray-700">Est. Profit</span>
-                          <span className={`font-bold ${computedProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
-                            ₹ {computedProfit.toLocaleString('en-IN')}
+                          <span className={`font-bold ${computedProfitMyTruck >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            ₹ {computedProfitMyTruck.toLocaleString('en-IN')}
                           </span>
                         </div>
                       </div>
@@ -769,11 +801,25 @@ export default function TripsPage() {
                       </>
                     )}
 
-                    <Field label="Trip Cost (₹)">
+                    {/* <Field label="Trip Cost (₹)">
                       <input type="number" value={form.trip_cost} onChange={f('trip_cost')} placeholder="0" className={inputCls} />
-                    </Field>
+                    </Field> 
                     <Field label="Charges (₹)">
                       <input type="number" value={form.trip_charges} onChange={f('trip_charges')} placeholder="0" className={inputCls} />
+                    </Field>*/}
+                    <Field label="Charges Type">
+                      <select value={form.charges_type} onChange={f('charges_type')} className={inputCls}>
+                        <option value="Fixed">Fixed</option>
+                        <option value="Percentage">Percentage</option>
+                        <option value="Per Ton">Per Ton</option>
+                      </select>
+                    </Field>
+                    <Field label={
+                      form.charges_type === 'Percentage' ? 'Charges (%)' :
+                      form.charges_type === 'Fixed' ? 'Charges Amount (₹)' :
+                      'Charges Per Ton (₹)'
+                    }>
+                      <input type="number" value={form.charges_value} onChange={f('charges_value')} placeholder="0" className={inputCls} />
                     </Field>
                     <Field label="TDS Type">
                       <select value={form.tds_type} onChange={f('tds_type')} className={inputCls}>
@@ -796,17 +842,18 @@ export default function TripsPage() {
                         <span className="text-gray-500">Supplier Cost</span>
                         <span className="font-semibold text-red-500">₹ {computedSupplierAmount.toLocaleString('en-IN')}</span>
                       </div>
-                      <div className="flex justify-between text-[12px]">
+
+                      {/* <div className="flex justify-between text-[12px]"> 
                         <span className="text-gray-500">Trip Cost</span>
-                        <span className="font-semibold text-red-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
+                        <span className="font-semibold text-blue-500">₹ {Number(form.trip_cost || 0).toLocaleString('en-IN')}</span>
+                      </div>*/}
+                     <div className="flex justify-between text-[12px]">
+                        <span className="text-gray-500">Supplier Charges</span>
+                        <span className="font-semibold text-blue-500">₹ {computedChargesAmount.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">Charges</span>
-                        <span className="font-semibold text-red-500">₹ {Number(form.trip_charges || 0).toLocaleString('en-IN')}</span>
-                      </div>
-                      <div className="flex justify-between text-[12px]">
-                        <span className="text-gray-500">TDS</span>
-                        <span className="font-semibold text-red-500">₹ {computedTdsAmount.toLocaleString('en-IN')}</span>
+                        <span className="text-gray-500">Charges (TDS)</span>
+                        <span className="font-semibold text-blue-500">₹ {computedTdsAmount.toLocaleString('en-IN')}</span>
                       </div>
                       <div className="flex justify-between text-[12px] border-t border-green-200 mt-1 pt-1">
                         <span className="font-semibold text-gray-700">Est. Profit</span>
@@ -852,6 +899,7 @@ export default function TripsPage() {
     </div>
   );
 }
+
 
 // ─── Trip Detail Panel ────────────────────────────────────────────────────────
 function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }: {

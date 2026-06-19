@@ -8,6 +8,8 @@ import {
   CheckCircle2, XCircle, Loader2, ExternalLink,
 } from 'lucide-react';
 
+import PortalUserField from '@/components/PortalUserField';
+
 const supabase = createClientComponentClient();
 const BUCKET = 'Drivers'; // root bucket name in Supabase Storage
 
@@ -47,6 +49,9 @@ interface Driver {
   insurance_doc: string | null;      
   deleted: boolean;
   created_at?: string;
+
+  portal_user_id: string | null;
+  portal_access: boolean;
 }
 
 type FormState = Omit<Driver, 'id' | 'driver_no' | 'deleted' | 'created_at'>;
@@ -83,6 +88,7 @@ const EMPTY_FORM: FormState = {
   status: 'Active', type: 'Heavy Vehicle', experience: '', city: '', address: '',
   joined_date: '', bank_account_no: '', bank_name: '', gpay_no: '', ifsc_code: '',
   branch_name: '', bank_doc: '', emergency_name: '', emergency_phone: '', other_doc: '',insurance_expiry: '',  insurance_doc: '',
+  portal_user_id: '', portal_access: true,
 };
 
 const TABS = ['Personal', 'License', 'Bank Details', 'Emergency & Docs'];
@@ -280,7 +286,8 @@ export default function DriversPage() {
       gpay_no: d.gpay_no || '', ifsc_code: d.ifsc_code || '', branch_name: d.branch_name || '',
       bank_doc: d.bank_doc || '', emergency_name: d.emergency_name || '',
       emergency_phone: d.emergency_phone || '', other_doc: d.other_doc || '', 
-      insurance_expiry: d.insurance_expiry || '',insurance_doc: d.insurance_doc || '',
+      insurance_expiry: d.insurance_expiry || '',insurance_doc: d.insurance_doc || '', 
+      portal_access: d.portal_access, portal_user_id: d.portal_user_id || '',
     });
     setActiveTab(0);
     setShowModal(true);
@@ -587,6 +594,15 @@ export default function DriversPage() {
                   <Field label="Joined Date"><input type="date" value={form.joined_date || ''} onChange={f('joined_date')} className={inputCls} /></Field>
                   <Field label="City"><input value={form.city || ''} onChange={f('city')} placeholder="e.g. Coimbatore" className={inputCls} /></Field>
                   <Field label="Address"><input value={form.address || ''} onChange={f('address')} placeholder="Full address" className={inputCls} /></Field>
+
+                  <PortalUserField
+                    role="driver"
+                    entityId={editId}             // null when adding new, uuid when editing
+                    hasPortalAccess={!!drivers.find(c => c.id === editId)?.portal_user_id}
+                    toast={toast}
+                    onSuccess={fetchDrivers}
+                  />
+                
                 </div>
               )}
 

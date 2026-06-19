@@ -10,6 +10,10 @@ import {
   User, CreditCard, Phone, FileText, ChevronLeft, ChevronRight,
   CheckCircle2, XCircle, Loader2, ExternalLink, Building2,
 } from 'lucide-react';
+import PortalUserField from '@/components/PortalUserField';
+
+
+
 
 const supabase = createClientComponentClient();
 const BUCKET = 'Customers';
@@ -47,6 +51,9 @@ interface Customer {
   emergency_contact_phone: string | null;
   other_doc_url: string | null;
   created_at?: string;
+
+  portal_user_id: string | null;
+  portal_access: boolean; 
 }
 
 type FormState = {
@@ -616,7 +623,16 @@ export default function CustomersPage() {
                   <div className="col-span-2">
                     <Field label="Address"><textarea value={form.address} onChange={f('address')} placeholder="Full address" rows={2} className={inputCls + ' resize-none'} /></Field>
                   </div>
+                  <PortalUserField
+                      role="customer"
+                      entityId={editId}             // null when adding new, uuid when editing
+                      hasPortalAccess={!!customers.find(c => c.id === editId)?.portal_user_id}
+                      toast={toast}
+                      onSuccess={fetchCustomers}
+                    />
                 </div>
+
+                
               )}
 
               {/* GST & PAN */}
