@@ -72,7 +72,9 @@ interface Trip {
    charges_type: string;     
    
    charges_value: number | null;
-estimated_profit: number | null;
+    estimated_profit: number | null;
+    do_no: string | null;
+    shipment_no: string | null;
 }
 
 interface DropItem { id: string; label: string; }
@@ -196,7 +198,9 @@ export default function TripsPage() {
     tds_value: '',
     trip_charges: '',
     charges_type: 'Fixed',    
-  charges_value: '',  
+    charges_value: '',  
+    do_no: '',
+  shipment_no: '',
     
   };
   const [form, setForm] = useState(emptyForm);
@@ -330,6 +334,8 @@ export default function TripsPage() {
       charges_value : parseFloat(form.charges_value || '0'),
       charges_type:form.charges_type,
        estimated_profit: finalEstimatedProfit,
+       do_no: form.do_no || null,
+      shipment_no: form.shipment_no || null,
     };
 
     if (editId) {
@@ -367,6 +373,8 @@ export default function TripsPage() {
       trip_charges: String(t.trip_charges || ''),
       charges_type: t.charges_type|| 'Fixed',    
       charges_value: String(t.charges_value || '') , 
+      do_no: String(t.do_no || ''), 
+     shipment_no: String(t.shipment_no || ''),
 
     });
     setActiveTab(0); setShowModal(true);
@@ -623,6 +631,23 @@ export default function TripsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Trip Date *">
                     <input type="date" value={form.trip_date} onChange={f('trip_date')} className={inputCls} />
+                  </Field>
+                  <Field label="DO Number">
+                    <input
+                      value={form.do_no}
+                      onChange={f('do_no')}
+                      placeholder="Enter DO Number"
+                      className={inputCls}
+                    />
+                  </Field>
+
+                  <Field label="Shipment Number">
+                    <input
+                      value={form.shipment_no}
+                      onChange={f('shipment_no')}
+                      placeholder="Enter Shipment Number"
+                      className={inputCls}
+                    />
                   </Field>
                   <Field label="Customer *">
                     <select value={form.customer_id} onChange={f('customer_id')} className={inputCls}>
@@ -916,7 +941,7 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   const [showExpModal, setShowExpModal] = useState(false);
   const [expForm, setExpForm] = useState({
     expense_date: new Date().toISOString().split('T')[0],
-    category: 'Diesel', amount: '', paid_by: 'Company', notes: '',
+    category: 'Diesel', amount: '', paid_by: 'Company', notes: '',advance_amount: '',
   });
   const [statusSaving, setStatusSaving] = useState(false);
   const [stepForm, setStepForm] = useState<Record<string, string | number>>({});
@@ -925,6 +950,54 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const SECTIONS = ['Overview', 'Pipeline', 'Expenses', 'Financials'];
+
+  const totalAdvance = expenses.reduce(
+  (s, e) => s + Number(e.advance_amount || 0),
+  0
+);
+
+  const DocumentViewer = ({
+  label,
+  path,
+}: {
+  label: string;
+  path?: string | null;
+}) => {
+  if (!path) return null;
+
+  return (
+    <button
+      onClick={() => openStepDoc(path)}
+      className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[11px] mt-1"
+    >
+      <ExternalLink size={10} />
+      {label}
+    </button>
+  );
+};
+
+const PhotoPreview = ({
+  title,
+  path,
+}: {
+  title: string;
+  path?: string | null;
+}) => {
+  if (!path) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => openStepDoc(path)}
+        className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[11px]"
+      >
+        <ExternalLink size={10} />
+        {title}
+      </button>
+    </div>
+  );
+};
+
 
   // ── Step config ────────────────────────────────────────────────────────────
   const STEP_CONFIG: Record<string, { kmField: string; kmLabel: string; docField: string; docLabel: string }> = {
@@ -978,7 +1051,7 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
-  const profit = (trip.freight_amount || 0) - (trip.supplier_amount || 0) - totalExpenses;
+  const profit = Number(trip.estimated_profit || 0);
 
   // ── Next status ────────────────────────────────────────────────────────────
   const nextStatus = () => {
@@ -1038,20 +1111,21 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
 
   // ── Expense helpers ────────────────────────────────────────────────────────
   const saveExpense = async () => {
-    const { error } = await supabase.from('trip_expenses').insert({
-      trip_id: trip.id,
-      expense_date: expForm.expense_date,
-      category: expForm.category,
-      amount: parseFloat(expForm.amount) || 0,
-      paid_by: expForm.paid_by,
-      notes: expForm.notes || null,
-    });
+  const {error} = await supabase.from('trip_expenses').insert({
+    trip_id: trip.id,
+    expense_date: expForm.expense_date,
+    category: expForm.category,
+    amount: parseFloat(expForm.amount) || 0,
+    advance_amount: parseFloat(expForm.advance_amount) || 0,
+    paid_by: expForm.paid_by,
+    notes: expForm.notes || null,
+  });
     if (error) toast('error', 'Failed: ' + error.message);
     else {
       toast('success', 'Expense added');
       setShowExpModal(false);
       fetchExpenses();
-      setExpForm({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '' });
+      setExpForm({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '',advance_amount:'' });
     }
   };
 
@@ -1122,6 +1196,8 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                 ['Driver / Supplier', trip.ownership === 'My Truck' ? (trip.driver_name || '—') : (trip.supplier_name || '—')],
                 ['Material', trip.material || '—'],
                 ['LR No', trip.lr_no || '—'],
+                ['DO No', trip.do_no || '—'],
+                ['Shipment No', trip.shipment_no || '—'],
               ].map(([k, v]) => (
                 <div key={k} className="flex gap-1 mb-1">
                   <span className="text-gray-400 w-28 shrink-0">{k}</span>
@@ -1152,8 +1228,10 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                 ['Freight', fmtMoney(trip.freight_amount)],
                 ['Supplier Cost', fmtMoney(trip.supplier_amount)],
                 ['Total Expenses', fmtMoney(totalExpenses)],
-                ['Est. Profit', fmtMoney(profit)],
-                ['Bill Type', trip.bill_type],
+                ['Supplier Charges', fmtMoney(trip.charges_value)],
+                ['TDS Amount', fmtMoney(trip.tds_amount)],
+                ['Est. Profit', fmtMoney(trip.estimated_profit)],
+                                ['Bill Type', trip.bill_type],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between mb-1">
                   <span className="text-gray-400">{k}</span>
@@ -1192,15 +1270,96 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                     {isPast && <span className="text-[10px] text-green-600 font-medium">Done</span>}
                   </div>
                   <div className="grid grid-cols-2 gap-2 ml-7">
-                    {step.fields.map(field => (
-                      <div key={field.f}>
-                        <label className="text-[10px] text-gray-400 block mb-1">{field.l}</label>
-                        <input type={field.type}
-                          defaultValue={(trip as any)[field.f] || ''}
-                          onChange={e => setStepForm(prev => ({ ...prev, [field.f]: e.target.value }))}
-                          className={panelInputCls} />
+                   <div className="grid grid-cols-2 gap-3 ml-7">
+  
+                        {/* KM Section */}
+                        <div>
+                          {step.fields.map(field => (
+                            <div key={field.f}>
+                              <label className="text-[10px] text-gray-400 block mb-1">
+                                {field.l}
+                              </label>
+
+                              <input
+                                type={field.type}
+                                defaultValue={(trip as any)[field.f] || ''}
+                                onChange={e =>
+                                  setStepForm(prev => ({
+                                    ...prev,
+                                    [field.f]: e.target.value
+                                  }))
+                                }
+                                className={panelInputCls}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Photo Section */}
+                        <div className="space-y-2">
+                          
+                          {step.key === 'Started' && trip.start_km_doc && (
+                            <button
+                              onClick={() => openStepDoc(trip.start_km_doc!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View Start Meter Photo
+                            </button>
+                          )}
+
+                          {step.key === 'Loading' && trip.loading_km_doc && (
+                            <button
+                              onClick={() => openStepDoc(trip.loading_km_doc!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View Loading Photo
+                            </button>
+                          )}
+                    {/* 
+                          {step.key === 'Loading' && trip.loaded_meter_photo && (
+                            <button
+                              onClick={() => openStepDoc(trip.loaded_meter_photo!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View Loaded Meter Photo
+                            </button>
+                          )} */}
+
+                          {/* {step.key === 'Unloading' && trip.unloading_photo && (
+                            <button
+                              onClick={() => openStepDoc(trip.unloading_photo!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View Unloading Photo
+                            </button>
+                          )} */}
+
+                          {step.key === 'Unloading' && trip.loading_km_doc && (
+                            <button
+                              onClick={() => openStepDoc(trip.loading_km_doc!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View Unloaded Meter Photo
+                            </button>
+                          )}
+
+                          {step.key === 'TripCompleted' && trip.end_km_photo && (
+                            <button
+                              onClick={() => openStepDoc(trip.end_km_photo!)}
+                              className="flex items-center gap-1 text-blue-600 text-[11px] hover:underline"
+                            >
+                              <ExternalLink size={10} />
+                              View End Meter Photo
+                            </button>
+                          )}
+                        </div>
+
                       </div>
-                    ))}
                   </div>
                   {Object.keys(stepForm).length > 0 && (
                     <button onClick={saveStepData} className="ml-7 mt-2 px-3 py-1 bg-blue-600 text-white rounded text-[11px]">Save</button>
@@ -1214,9 +1373,12 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               <p className="text-[10px] text-gray-400">Received: {trip.pop_received_date ? fmtDate(trip.pop_received_date) : '—'}</p>
               <p className="text-[10px] text-gray-400">Submitted: {trip.pop_submitted_date ? fmtDate(trip.pop_submitted_date) : '—'}</p>
               {trip.pop_doc && (
-                <button onClick={() => openStepDoc(trip.pop_doc!)}
-                  className="mt-1 flex items-center gap-1 text-[11px] text-blue-600 hover:underline">
-                  <ExternalLink size={10} /> View POP Document
+                <button
+                  onClick={() => openStepDoc(trip.pop_doc!)}
+                  className="mt-1 flex items-center gap-1 text-[11px] text-blue-600 hover:underline"
+                >
+                  <ExternalLink size={10} />
+                  View POD Document
                 </button>
               )}
             </div>
@@ -1241,7 +1403,7 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                    {['Date','Category','Amount','Paid By','Notes',''].map(h => (
+                    {['Date','Category','Amount','Advance','Paid By','Notes',''].map(h => (
                       <th key={h} className="text-left px-2 py-1.5 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -1252,6 +1414,9 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                       <td className="px-2 py-1.5 text-gray-500">{fmtDate(e.expense_date)}</td>
                       <td className="px-2 py-1.5 font-medium text-gray-700">{e.category}</td>
                       <td className="px-2 py-1.5 text-red-500 font-semibold">₹ {Number(e.amount).toLocaleString('en-IN')}</td>
+                      <td className="px-2 py-1.5 text-orange-500 font-semibold">
+                              ₹ {Number(e.advance_amount || 0).toLocaleString('en-IN')}
+                            </td>
                       <td className="px-2 py-1.5 text-gray-500">{e.paid_by}</td>
                       <td className="px-2 py-1.5 text-gray-400">{e.notes || '—'}</td>
                       <td className="px-2 py-1.5">
@@ -1263,6 +1428,17 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                     <td colSpan={2} className="px-2 py-2 text-gray-600">Total Expenses</td>
                     <td className="px-2 py-2 text-red-600">₹ {totalExpenses.toLocaleString('en-IN')}</td>
                     <td colSpan={3} />
+                  </tr>
+                  <tr className="bg-orange-50 font-semibold">
+                    <td colSpan={2} className="px-2 py-2 text-orange-700">
+                      Total Advance
+                    </td>
+
+                    <td className="px-2 py-2 text-orange-600">
+                      ₹ {totalAdvance.toLocaleString('en-IN')}
+                    </td>
+
+                    <td colSpan={4}></td>
                   </tr>
                 </tbody>
               </table>
@@ -1287,6 +1463,24 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                     <div><label className="text-[11px] text-gray-500 block mb-1">Amount (₹)</label>
                       <input type="number" value={expForm.amount} onChange={e => setExpForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" className={panelInputCls} />
                     </div>
+                    <div>
+                          <label className="text-[11px] text-gray-500 block mb-1">
+                            Advance Amount (₹)
+                          </label>
+
+                          <input
+                            type="number"
+                            value={expForm.advance_amount}
+                            onChange={e =>
+                              setExpForm(p => ({
+                                ...p,
+                                advance_amount: e.target.value
+                              }))
+                            }
+                            placeholder="0"
+                            className={panelInputCls}
+                          />
+                        </div>
                     <div><label className="text-[11px] text-gray-500 block mb-1">Paid By</label>
                       <select value={expForm.paid_by} onChange={e => setExpForm(p => ({ ...p, paid_by: e.target.value }))} className={panelInputCls}>
                         <option>Company</option><option>Driver</option><option>Supplier</option>
@@ -1328,6 +1522,19 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
                 {trip.ownership === 'Marker Truck' && (
                   <div className="flex justify-between"><span className="text-gray-500">Supplier Cost</span><span className="font-semibold text-orange-600">{fmtMoney(trip.supplier_amount)}</span></div>
                 )}
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Supplier Charges</span>
+                  <span className="font-semibold text-orange-600">
+                    {fmtMoney(trip.charges_value)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-gray-500">TDS Amount</span>
+                  <span className="font-semibold text-red-500">
+                    {fmtMoney(trip.tds_amount)}
+                  </span>
+                </div>
                 <div className="flex justify-between"><span className="text-gray-500">Trip Expenses</span><span className="font-semibold text-red-500">{fmtMoney(totalExpenses)}</span></div>
                 {expenses.map(e => (
                   <div key={e.id} className="flex justify-between pl-3 text-[10px]">
@@ -1342,7 +1549,16 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
               <div className="grid grid-cols-3 gap-4 text-center">
                 {[
                   { label: 'Total Income', value: fmtMoney(trip.freight_amount), color: 'text-blue-600' },
-                  { label: 'Total Cost', value: fmtMoney((trip.supplier_amount || 0) + totalExpenses), color: 'text-red-500' },
+                 {
+                    label: 'Total Cost',
+                    value: fmtMoney(
+                      (trip.supplier_amount || 0) +
+                      (trip.tds_amount || 0) -
+                      (trip.charges_value || 0) +
+                      totalExpenses
+                    )
+                    , color: 'text-red-500'
+                  },
                   { label: 'Net Profit', value: fmtMoney(profit), color: profit >= 0 ? 'text-green-700' : 'text-red-700' },
                 ].map(s => (
                   <div key={s.label} className="bg-white rounded-lg p-3 border border-white/80">

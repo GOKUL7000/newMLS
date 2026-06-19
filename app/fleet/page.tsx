@@ -6,7 +6,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveCo
 import {
   Eye, Pencil, Trash2, Plus, Search, X, Upload,
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, Loader2, ExternalLink,
-  FileText, Truck,
+  FileText, Truck, BadgeIndianRupee, CheckCheck,
 } from 'lucide-react';
 
 const supabase = createClientComponentClient();
@@ -46,6 +46,9 @@ interface Vehicle {
   current_odometer: number | null;
   other_doc: string | null;
   deleted: boolean;
+  emi_amount: number | null;
+  emi_due_date: string | null;
+  emi_paid: boolean;
   created_at?: string;
 }
 
@@ -61,6 +64,9 @@ type FormState = {
   fc_valid_up_to: string; fc_doc: string;
   status: string; location: string; current_odometer: string;
   other_doc: string;
+  emi_amount: string;
+  emi_due_date: string;
+  emi_paid: boolean;
 };
 
 const EMPTY_FORM: FormState = {
@@ -73,9 +79,12 @@ const EMPTY_FORM: FormState = {
   fc_valid_up_to: '', fc_doc: '',
   status: 'Available', location: '', current_odometer: '',
   other_doc: '',
+  emi_amount: '',
+  emi_due_date: '',
+  emi_paid: false,
 };
 
-const TABS = ['Basic Info', 'Documents', 'Assignment'];
+const TABS = ['Basic Info', 'EMI / Loan', 'Documents', 'Assignment'];
 const PAGE_SIZE = 10;
 const inputCls = "w-full border border-gray-200 rounded-lg px-3 py-1.5 text-[12px] focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100";
 
@@ -193,7 +202,7 @@ function DocRow({ label, path }: { label: string; path: string | null }) {
   );
 }
 
-// ─── Expiry check ─────────────────────────────────────────────────────────────
+// ─── Expiry / EMI helpers ─────────────────────────────────────────────────────
 function isExpiringSoon(dateStr: string | null, days = 30): boolean {
   if (!dateStr) return false;
   const diff = (new Date(dateStr).getTime() - Date.now()) / 86400000;
@@ -212,6 +221,16 @@ function dateCls(dateStr: string | null) {
   if (isExpiringSoon(dateStr)) return 'text-orange-500 font-medium';
   return 'text-gray-500';
 }
+function emiDueCls(dateStr: string | null): string {
+  if (!dateStr) return 'text-gray-400';
+  if (isExpired(dateStr)) return 'text-red-600 font-semibold';
+  if (isExpiringSoon(dateStr, 7)) return 'text-orange-500 font-semibold';
+  return 'text-gray-600';
+}
+function fmtINR(amount: number | null): string {
+  if (!amount) return '—';
+  return '₹' + amount.toLocaleString('en-IN');
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function FleetPage() {
@@ -227,6 +246,7 @@ export default function FleetPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [viewVehicle, setViewVehicle] = useState<Vehicle | null>(null);
   const [confirmInactiveId, setConfirmInactiveId] = useState<string | null>(null);
+  const [confirmPaidId, setConfirmPaidId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [uploadingField, setUploadingField] = useState<DocField | null>(null);
@@ -234,6 +254,7 @@ export default function FleetPage() {
   const [drivers, setDrivers] = useState<DropdownItem[]>([]);
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   const [driverMap, setDriverMap] = useState<Record<string, string>>({});
+  const [markingPaid, setMarkingPaid] = useState<string | null>(null);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
   const toast = useCallback((type: ToastType, message: string) => {
@@ -246,7 +267,7 @@ export default function FleetPage() {
   // ── Fetch vehicles ────────────────────────────────────────────────────────
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('vehicles')
       .select('*')
       .eq('deleted', false)
@@ -259,17 +280,16 @@ export default function FleetPage() {
   // ── Fetch suppliers & drivers for dropdowns ───────────────────────────────
   const fetchDropdowns = useCallback(async () => {
     const [{ data: sup }, { data: drv }] = await Promise.all([
-      supabase.from('suppliers').select('id, name').eq('status', 'Active').eq('deleted', false),
-      supabase.from('drivers').select('id, name').eq('status', 'Active').eq('deleted', false),
+      (supabase as any).from('suppliers').select('id, name').eq('status', 'Active').eq('deleted', false),
+      (supabase as any).from('drivers').select('id, name').eq('status', 'Active').eq('deleted', false),
     ]);
-    setSuppliers((sup || []).map(s => ({ id: s.id, label: s.name })));
-    setDrivers((drv || []).map(d => ({ id: d.id, label: d.name })));
-    // Build lookup maps for table display
+    setSuppliers((sup || []).map((s: any) => ({ id: s.id, label: s.name })));
+    setDrivers((drv || []).map((d: any) => ({ id: d.id, label: d.name })));
     const sMap: Record<string, string> = {};
-    (sup || []).forEach(s => { sMap[s.id] = s.name; });
+    (sup || []).forEach((s: any) => { sMap[s.id] = s.name; });
     setSupplierMap(sMap);
     const dMap: Record<string, string> = {};
-    (drv || []).forEach(d => { dMap[d.id] = d.name; });
+    (drv || []).forEach((d: any) => { dMap[d.id] = d.name; });
     setDriverMap(dMap);
   }, []);
 
@@ -283,6 +303,8 @@ export default function FleetPage() {
     workshop: vehicles.filter(v => v.status === 'Workshop').length,
     breakdown: vehicles.filter(v => v.status === 'Breakdown').length,
     inactive: vehicles.filter(v => v.status === 'Inactive').length,
+    emiDueSoon: vehicles.filter(v => !v.emi_paid && v.emi_due_date && isExpiringSoon(v.emi_due_date, 7)).length,
+    emiOverdue: vehicles.filter(v => !v.emi_paid && v.emi_due_date && isExpired(v.emi_due_date)).length,
   };
 
   const fleetStatusData = [
@@ -293,7 +315,6 @@ export default function FleetPage() {
     { name: 'Inactive', value: stats.inactive, color: '#6b7280' },
   ].filter(d => d.value > 0);
 
-  // Doc expiry alerts
   const docAlerts = [
     { label: 'Insurance Expiring in 30 Days', value: vehicles.filter(v => isExpiringSoon(v.insurance_valid_up_to)).length, color: 'text-orange-500' },
     { label: 'Insurance Expired', value: vehicles.filter(v => isExpired(v.insurance_valid_up_to)).length, color: 'text-red-600' },
@@ -301,12 +322,10 @@ export default function FleetPage() {
     { label: 'FC Expiring in 30 Days', value: vehicles.filter(v => isExpiringSoon(v.fc_valid_up_to)).length, color: 'text-yellow-600' },
   ];
 
-  // Brand chart
   const brandData = Array.from(
     vehicles.reduce((map, v) => { map.set(v.brand, (map.get(v.brand) || 0) + 1); return map; }, new Map<string, number>())
   ).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
-  // Type chart
   const typeData = Array.from(
     vehicles.reduce((map, v) => { map.set(v.type, (map.get(v.type) || 0) + 1); return map; }, new Map<string, number>())
   ).map(([name, value], i) => ({ name, value, color: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#6b7280'][i] || '#6b7280' }));
@@ -339,6 +358,9 @@ export default function FleetPage() {
       status: v.status, location: v.location || '',
       current_odometer: v.current_odometer ? String(v.current_odometer) : '',
       other_doc: v.other_doc || '',
+      emi_amount: v.emi_amount ? String(v.emi_amount) : '',
+      emi_due_date: v.emi_due_date || '',
+      emi_paid: v.emi_paid || false,
     });
     setActiveTab(0);
     setShowModal(true);
@@ -359,6 +381,32 @@ export default function FleetPage() {
     const prefix = editId ? (vehicles.find(v => v.id === editId)?.vehicle_no || 'NEW') : (form.vehicle_no || 'NEW');
     const path = await uploadFile(file, field, prefix);
     if (path) setForm(prev => ({ ...prev, [field]: path }));
+  };
+
+  // ── Mark EMI Paid ─────────────────────────────────────────────────────────
+  const markEmiPaid = async (id: string) => {
+    setMarkingPaid(id);
+    const vehicle = vehicles.find(v => v.id === id);
+    
+    // Auto-advance due date by 1 month
+    let nextDueDate: string | null = null;
+    if (vehicle?.emi_due_date) {
+      const d = new Date(vehicle.emi_due_date);
+      d.setMonth(d.getMonth() + 1);
+      nextDueDate = d.toISOString().split('T')[0]; // YYYY-MM-DD
+    }
+
+    const { error } = await (supabase as any)
+      .from('vehicles')
+      .update({ emi_paid: false, emi_due_date: nextDueDate })
+      .eq('id', id);
+    setMarkingPaid(null);
+    if (error) toast('error', 'Failed to mark paid: ' + error.message);
+    else {
+      toast('success', `EMI paid ✓ — next due date set to ${nextDueDate ? fmtDate(nextDueDate) : '—'}`);
+      setConfirmPaidId(null);
+      fetchVehicles();
+    }
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────
@@ -392,14 +440,24 @@ export default function FleetPage() {
       location: form.location || null,
       current_odometer: form.current_odometer ? parseInt(form.current_odometer) : 0,
       other_doc: form.other_doc || null,
+      emi_amount: form.emi_amount ? parseFloat(form.emi_amount) : null,
+      emi_due_date: form.emi_due_date || null,
+      // When editing and a new due date is set, reset paid status automatically
+      emi_paid: editId
+        ? (form.emi_due_date
+            ? (form.emi_due_date !== (vehicles.find(v => v.id === editId)?.emi_due_date || '')
+                ? false          // new date entered → reset to unpaid
+                : form.emi_paid) // same date → keep current
+            : form.emi_paid)
+        : false,
     };
 
     if (editId) {
-      const { error } = await supabase.from('vehicles').update(payload).eq('id', editId);
+      const { error } = await (supabase as any).from('vehicles').update(payload).eq('id', editId);
       if (error) toast('error', 'Update failed: ' + error.message);
       else { toast('success', 'Vehicle updated successfully'); setShowModal(false); fetchVehicles(); }
     } else {
-      const { error } = await supabase.from('vehicles').insert({ ...payload, deleted: false });
+      const { error } = await (supabase as any).from('vehicles').insert({ ...payload, deleted: false });
       if (error) toast('error', 'Insert failed: ' + error.message);
       else { toast('success', `Vehicle ${payload.vehicle_no} added successfully`); setShowModal(false); fetchVehicles(); }
     }
@@ -408,7 +466,7 @@ export default function FleetPage() {
 
   // ── Set Inactive ──────────────────────────────────────────────────────────
   const setInactive = async (id: string) => {
-    const { error } = await supabase.from('vehicles').update({ status: 'Inactive' }).eq('id', id);
+    const { error } = await (supabase as any).from('vehicles').update({ status: 'Inactive' }).eq('id', id);
     if (error) toast('error', 'Failed: ' + error.message);
     else { toast('success', 'Vehicle set as Inactive'); setConfirmInactiveId(null); fetchVehicles(); }
   };
@@ -416,6 +474,24 @@ export default function FleetPage() {
   const f = (k: keyof FormState) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(prev => ({ ...prev, [k]: e.target.value }));
+
+  // ── EMI status label ──────────────────────────────────────────────────────
+  function emiStatusBadge(v: Vehicle) {
+    if (!v.emi_amount) return null;
+    if (v.emi_paid) {
+      return <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">Paid</span>;
+    }
+    if (!v.emi_due_date) {
+      return <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[10px]">No Due Date</span>;
+    }
+    if (isExpired(v.emi_due_date)) {
+      return <span className="px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-medium">Overdue</span>;
+    }
+    if (isExpiringSoon(v.emi_due_date, 7)) {
+      return <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-medium">Due Soon</span>;
+    }
+    return <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">Pending</span>;
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -432,8 +508,8 @@ export default function FleetPage() {
             { label: 'Running', value: stats.running, sub: `${stats.total ? Math.round(stats.running / stats.total * 100) : 0}% of Total`, color: 'text-green-600' },
             { label: 'Available', value: stats.available, sub: `${stats.total ? Math.round(stats.available / stats.total * 100) : 0}% of Total`, color: 'text-blue-500' },
             { label: 'Workshop', value: stats.workshop, sub: 'Under Service', color: 'text-yellow-600' },
-            { label: 'Breakdown', value: stats.breakdown, sub: 'Need Attention', color: 'text-red-600' },
-            { label: 'Inactive', value: stats.inactive, sub: 'Not Active', color: 'text-gray-500' },
+            { label: 'EMI Overdue', value: stats.emiOverdue, sub: 'Payment Overdue', color: 'text-red-600' },
+            { label: 'EMI Due Soon', value: stats.emiDueSoon, sub: 'Within 7 Days', color: 'text-orange-500' },
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
               <p className="text-[10px] text-gray-400">{c.label}</p>
@@ -481,45 +557,62 @@ export default function FleetPage() {
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                      {['Vehicle No','Type','Brand / Model','Year','Ownership','Assigned To','Insurance Expiry','Permit Expiry','FC Expiry','Status','Location','Actions'].map(h => (
+                      {['Vehicle No','Type','Brand / Model','Ownership','Insurance Expiry','Status','EMI Amount','EMI Due Date','EMI Status','Actions'].map(h => (
                         <th key={h} className="text-left px-2 py-2 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {paginated.length === 0
-                      ? <tr><td colSpan={11} className="text-center py-12 text-gray-400">No vehicles found.</td></tr>
+                      ? <tr><td colSpan={10} className="text-center py-12 text-gray-400">No vehicles found.</td></tr>
                       : paginated.map(v => (
                         <tr key={v.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="px-2 py-2 text-blue-600 font-medium whitespace-nowrap">{v.vehicle_no}</td>
                           <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{v.type}</td>
                           <td className="px-2 py-2 text-gray-700 font-medium">{v.brand} {v.model}</td>
-                          <td className="px-2 py-2 text-gray-500">{v.year}</td>
                           <td className="px-2 py-2">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${v.ownership === 'My Truck' ? 'bg-purple-50 text-purple-600' : 'bg-orange-50 text-orange-600'}`}>
                               {v.ownership}
                             </span>
                           </td>
-                          <td className="px-2 py-2">
-                            {v.ownership === 'My Truck' && v.driver_id
-                              ? <span className="text-[11px] text-gray-700 font-medium">🧑 {driverMap[v.driver_id] || '—'}</span>
-                              : v.ownership === 'Marker Truck' && v.supplier_id
-                              ? <span className="text-[11px] text-gray-700 font-medium">🏢 {supplierMap[v.supplier_id] || '—'}</span>
-                              : <span className="text-[11px] text-gray-400">—</span>}
-                          </td>
                           <td className={`px-2 py-2 whitespace-nowrap ${dateCls(v.insurance_valid_up_to)}`}>{fmtDate(v.insurance_valid_up_to)}</td>
-                          <td className={`px-2 py-2 whitespace-nowrap ${dateCls(v.permit_valid_up_to)}`}>{fmtDate(v.permit_valid_up_to)}</td>
-                          <td className={`px-2 py-2 whitespace-nowrap ${dateCls(v.fc_valid_up_to)}`}>{fmtDate(v.fc_valid_up_to)}</td>
                           <td className="px-2 py-2">
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${STATUS_COLOR[v.status]}`}>{v.status}</span>
                           </td>
-                          <td className="px-2 py-2 text-gray-500">{v.location || '—'}</td>
+
+                          {/* EMI Amount */}
+                          <td className="px-2 py-2 text-gray-700 font-medium whitespace-nowrap">
+                            {v.emi_amount ? fmtINR(v.emi_amount) : <span className="text-gray-300">—</span>}
+                          </td>
+
+                          {/* EMI Due Date — hidden when paid */}
+                          <td className={`px-2 py-2 whitespace-nowrap ${emiDueCls(v.emi_paid ? null : v.emi_due_date)}`}>
+                            {v.emi_amount
+                              ? v.emi_paid
+                                ? <span className="text-gray-300 italic text-[10px]">— set next date —</span>
+                                : fmtDate(v.emi_due_date)
+                              : <span className="text-gray-300">—</span>}
+                          </td>
+
+                          {/* EMI Status badge */}
+                          <td className="px-2 py-2">{emiStatusBadge(v)}</td>
+
+                          {/* Actions */}
                           <td className="px-2 py-2">
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 items-center">
                               <button onClick={() => setViewVehicle(v)} className="text-gray-400 hover:text-blue-600" title="View"><Eye size={12} /></button>
                               <button onClick={() => openEdit(v)} className="text-gray-400 hover:text-green-600" title="Edit"><Pencil size={12} /></button>
                               {v.status !== 'Inactive' && (
                                 <button onClick={() => setConfirmInactiveId(v.id)} className="text-gray-400 hover:text-red-500" title="Set Inactive"><Trash2 size={12} /></button>
+                              )}
+                              {/* Mark EMI Paid button — only show if EMI exists and not yet paid */}
+                              {v.emi_amount && !v.emi_paid && (
+                                <button
+                                  onClick={() => setConfirmPaidId(v.id)}
+                                  title="Mark EMI Paid"
+                                  className="flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 border border-green-200 text-green-700 rounded text-[10px] font-medium hover:bg-green-100 whitespace-nowrap">
+                                  <CheckCheck size={10} /> Paid
+                                </button>
                               )}
                             </div>
                           </td>
@@ -575,6 +668,24 @@ export default function FleetPage() {
               ) : (
                 <p className="text-[11px] text-gray-300 text-center py-4">No data</p>
               )}
+            </div>
+
+            {/* EMI Summary */}
+            <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+              <h3 className="text-[12px] font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+                <BadgeIndianRupee size={13} className="text-blue-500" /> EMI Summary
+              </h3>
+              {[
+                { label: 'EMI Overdue', value: stats.emiOverdue, color: 'text-red-600' },
+                { label: 'Due within 7 days', value: stats.emiDueSoon, color: 'text-orange-500' },
+                { label: 'Vehicles with EMI', value: vehicles.filter(v => !!v.emi_amount).length, color: 'text-blue-600' },
+                { label: 'Paid this cycle', value: vehicles.filter(v => v.emi_paid).length, color: 'text-green-600' },
+              ].map(d => (
+                <div key={d.label} className="flex justify-between items-center mb-1.5">
+                  <span className="text-[10px] text-gray-500">{d.label}</span>
+                  <span className={`text-[11px] font-semibold ${d.color}`}>{d.value}</span>
+                </div>
+              ))}
             </div>
 
             {/* Doc Expiry */}
@@ -708,8 +819,71 @@ export default function FleetPage() {
                 </div>
               )}
 
-              {/* Tab 1 – Documents */}
+              {/* Tab 1 – EMI / Loan */}
               {activeTab === 1 && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-[11px] text-blue-700">
+                    💡 Enter the monthly EMI amount and next due date. Once paid, click <strong>Mark Paid</strong> in the table — the due date will be hidden until you set the next month's date here.
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Monthly EMI Amount (₹)">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[12px]">₹</span>
+                        <input
+                          type="number"
+                          value={form.emi_amount}
+                          onChange={f('emi_amount')}
+                          placeholder="e.g. 45000"
+                          className={`${inputCls} pl-6`}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Next EMI Due Date">
+                      <input
+                        type="date"
+                        value={form.emi_due_date}
+                        onChange={f('emi_due_date')}
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Current status preview when editing */}
+                  {editId && (() => {
+                    const v = vehicles.find(x => x.id === editId);
+                    if (!v?.emi_amount) return null;
+                    return (
+                      <div className={`rounded-lg p-3 border text-[11px] ${
+                        v.emi_paid
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : isExpired(v.emi_due_date)
+                          ? 'bg-red-50 border-red-200 text-red-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-600'
+                      }`}>
+                        <p className="font-semibold mb-1">Current EMI Status</p>
+                        <p>Amount: <strong>{fmtINR(v.emi_amount)}</strong></p>
+                        <p>Due Date: <strong>{fmtDate(v.emi_due_date)}</strong></p>
+                        <p>Status: <strong>{v.emi_paid ? '✅ Paid' : isExpired(v.emi_due_date) ? '🔴 Overdue' : '🟡 Pending'}</strong></p>
+                        {!v.emi_paid && <p className="mt-1 text-[10px] opacity-75">To reset: set a new due date above and save — status will auto-reset to Pending.</p>}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Clear EMI option */}
+                  {(form.emi_amount || form.emi_due_date) && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(prev => ({ ...prev, emi_amount: '', emi_due_date: '', emi_paid: false }))}
+                      className="text-[11px] text-red-500 hover:text-red-700 underline"
+                    >
+                      Clear EMI details
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 2 – Documents */}
+              {activeTab === 2 && (
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="RC Number"><input value={form.rc_no} onChange={f('rc_no')} placeholder="RC number" className={inputCls} /></Field>
                   <div className="col-span-1">
@@ -738,10 +912,9 @@ export default function FleetPage() {
                 </div>
               )}
 
-              {/* Tab 2 – Assignment */}
-              {activeTab === 2 && (
+              {/* Tab 3 – Assignment */}
+              {activeTab === 3 && (
                 <div className="space-y-4">
-                  {/* Ownership toggle */}
                   <div>
                     <label className="text-[11px] text-gray-500 block mb-2">Ownership *</label>
                     <div className="flex gap-3">
@@ -758,7 +931,6 @@ export default function FleetPage() {
                     </div>
                   </div>
 
-                  {/* Conditional dropdown */}
                   {form.ownership === 'Marker Truck' && (
                     <div>
                       <label className="text-[11px] text-gray-500 block mb-1">Select Supplier</label>
@@ -845,6 +1017,24 @@ export default function FleetPage() {
                 <Row2 a={['Body Length', viewVehicle.body_length]} b={['Odometer', viewVehicle.current_odometer ? `${viewVehicle.current_odometer.toLocaleString('en-IN')} KM` : null]} />
                 <Row2 a={['Location', viewVehicle.location]} b={['Ownership', viewVehicle.ownership]} />
               </Section>
+
+              {/* EMI Section in view modal */}
+              {viewVehicle.emi_amount && (
+                <Section icon={<BadgeIndianRupee size={13} />} title="EMI / Loan">
+                  <Row2
+                    a={['Monthly EMI', fmtINR(viewVehicle.emi_amount)]}
+                    b={['Due Date', viewVehicle.emi_paid ? '— set next date —' : fmtDate(viewVehicle.emi_due_date)]}
+                  />
+                  <Row1 label="Payment Status" value={
+                    viewVehicle.emi_paid
+                      ? '✅ Paid'
+                      : viewVehicle.emi_due_date
+                      ? isExpired(viewVehicle.emi_due_date) ? '🔴 Overdue' : '🟡 Pending'
+                      : 'No due date set'
+                  } />
+                </Section>
+              )}
+
               <Section icon={<FileText size={13} />} title="Documents">
                 <Row2 a={['RC Number', viewVehicle.rc_no]} b={['', null]} />
                 <div className="grid grid-cols-2 gap-2">
@@ -895,6 +1085,40 @@ export default function FleetPage() {
           </div>
         </div>
       )}
+
+      {/* ─── Mark EMI Paid Confirm ────────────────────────────────────────── */}
+      {confirmPaidId && (() => {
+        const v = vehicles.find(x => x.id === confirmPaidId);
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-2xl w-80 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center">
+                  <CheckCheck size={16} className="text-green-600" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-gray-800">Mark EMI as Paid?</p>
+                  <p className="text-[11px] text-gray-400">{v?.vehicle_no} — {fmtINR(v?.emi_amount ?? null)}</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 mb-4">
+                Due date will <strong>auto-advance by 1 month</strong> after marking paid. No manual update needed.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => markEmiPaid(confirmPaidId)}
+                  disabled={markingPaid === confirmPaidId}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg text-[12px] font-medium hover:bg-green-700 disabled:opacity-60 flex items-center justify-center gap-1.5">
+                  {markingPaid === confirmPaidId && <Loader2 size={12} className="animate-spin" />}
+                  ✓ Yes, Mark Paid
+                </button>
+                <button onClick={() => setConfirmPaidId(null)}
+                  className="flex-1 border border-gray-200 text-gray-600 py-2 rounded-lg text-[12px]">Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
