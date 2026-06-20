@@ -56,7 +56,7 @@ interface Supplier {
 type FormState = Omit<Supplier, 'id' | 'supplier_no' | 'deleted' | 'created_at'>;
 
 const EMPTY_FORM: FormState = {
-  name: '', category: 'Fuel', mobile: '', email: '', city: '', address: '',
+  name: '', category: 'Truck', mobile: '', email: '', city: '', address: '',
   // credit_limit: null, 
   outstanding: null, status: 'Active',
   gstin: '', pan: '', gst_doc: '', pan_doc: '',
@@ -74,6 +74,7 @@ const statusColor: Record<string, string> = {
 };
 
 const categoryColor: Record<string, string> = {
+  Truck: 'bg-red-50 text-red-600',
   Fuel: 'bg-orange-50 text-orange-600',
   Tyre: 'bg-blue-50 text-blue-600',
   Maintenance: 'bg-purple-50 text-purple-600',
@@ -239,6 +240,7 @@ export default function SuppliersPage() {
 
   // Payables donut data
   const payablesData = [
+    { name: 'Truck', value: suppliers.filter(s => s.category === 'Truck').reduce((a, s) => a + (s.outstanding || 0), 0),  pct: '36.9%', color: '#fc0909' },
     { name: 'Fuel', value: suppliers.filter(s => s.category === 'Fuel').reduce((a, s) => a + (s.outstanding || 0), 0),  pct: '36.9%', color: '#f97316' },
     { name: 'Tyre', value: suppliers.filter(s => s.category === 'Tyre').reduce((a, s) => a + (s.outstanding || 0), 0),  pct: '25.9%', color: '#3b82f6' },
     { name: 'Maintenance', value: suppliers.filter(s => s.category === 'Maintenance').reduce((a, s) => a + (s.outstanding || 0), 0), pct: '25.9%', color: '#8b5cf6' },
@@ -402,7 +404,7 @@ export default function SuppliersPage() {
                 <select value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setPage(1); }}
                   className="border border-gray-200 rounded-lg px-2 py-1.5 text-[11px]">
                   <option value="All">All Types</option>
-                  <option>Fuel</option><option>Tyre</option><option>Maintenance</option><option>Insurance</option><option>Others</option>
+                    <option>Truck</option><option>Fuel</option><option>Tyre</option><option>Maintenance</option><option>Insurance</option><option>Others</option>
                 </select>
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 bg-[#1a56db] text-white px-3 py-1.5 rounded-lg text-[11px] font-medium hover:bg-blue-700">
@@ -570,7 +572,7 @@ export default function SuppliersPage() {
                   <Field label="Supplier Name *"><input value={form.name} onChange={f('name')} placeholder="e.g. Indian Oil - Peelamedu" className={inputCls} /></Field>
                   <Field label="Category">
                     <select value={form.category} onChange={f('category')} className={inputCls}>
-                      <option>Fuel</option><option>Tyre</option><option>Maintenance</option><option>Insurance</option><option>Others</option>
+                      <option>Truck</option><option>Fuel</option><option>Tyre</option><option>Maintenance</option><option>Insurance</option><option>Others</option>
                     </select>
                   </Field>
                   <Field label="Mobile"><input value={form.mobile || ''} onChange={f('mobile')} placeholder="Mobile number" className={inputCls} /></Field>
