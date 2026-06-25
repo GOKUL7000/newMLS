@@ -94,7 +94,7 @@ const PIPELINE: { key: string; label: string; color: string }[] = [
   { key: 'TripCompleted',   label: 'Trip Completed',   color: '#10b981' },
   { key: 'POPReceived',     label: 'POP Received',     color: '#06b6d4' },
   { key: 'POPSubmitted',    label: 'POP Submitted',    color: '#0ea5e9' },
-  { key: 'GenerateInvoice', label: 'Generate Invoice', color: '#f97316' },
+  // { key: 'GenerateInvoice', label: 'Generate Invoice', color: '#f97316' },
   { key: 'Settled',         label: 'Settled',          color: '#22c55e' },
 ];
 
@@ -106,7 +106,7 @@ const STATUS_COLOR: Record<string, string> = {
   TripCompleted:   'bg-teal-100 text-teal-700',
   POPReceived:     'bg-cyan-100 text-cyan-700',
   POPSubmitted:    'bg-sky-100 text-sky-700',
-  GenerateInvoice: 'bg-orange-100 text-orange-700',
+  // GenerateInvoice: 'bg-orange-100 text-orange-700',
   Settled:         'bg-green-100 text-green-700',
 };
 
@@ -1559,7 +1559,10 @@ const PhotoPreview = ({
                     )
                     , color: 'text-red-500'
                   },
-                  { label: 'Net Profit', value: fmtMoney(profit), color: profit >= 0 ? 'text-green-700' : 'text-red-700' },
+                  { label: 'Net Profit', value: fmtMoney(profit -  ((trip.supplier_amount || 0) +
+                      (trip.tds_amount || 0) -
+                      (trip.charges_value || 0) +
+                      totalExpenses)), color: profit >= 0 ? 'text-green-700' : 'text-red-700' },
                 ].map(s => (
                   <div key={s.label} className="bg-white rounded-lg p-3 border border-white/80">
                     <p className="text-[10px] text-gray-400">{s.label}</p>
