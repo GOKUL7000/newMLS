@@ -92,8 +92,8 @@ const PIPELINE: { key: string; label: string; color: string }[] = [
   { key: 'Loading',         label: 'Loading',          color: '#f59e0b' },
   { key: 'Unloading',       label: 'Unloading',        color: '#8b5cf6' },
   { key: 'TripCompleted',   label: 'Trip Completed',   color: '#10b981' },
-  { key: 'POPReceived',     label: 'POP Received',     color: '#06b6d4' },
-  { key: 'POPSubmitted',    label: 'POP Submitted',    color: '#0ea5e9' },
+  { key: 'POPReceived',     label: 'POD Received',     color: '#06b6d4' },
+  { key: 'POPSubmitted',    label: 'POD Submitted',    color: '#0ea5e9' },
   // { key: 'GenerateInvoice', label: 'Generate Invoice', color: '#f97316' },
   { key: 'Settled',         label: 'Settled',          color: '#22c55e' },
 ];
@@ -1415,31 +1415,48 @@ const PhotoPreview = ({
                       <td className="px-2 py-1.5 font-medium text-gray-700">{e.category}</td>
                       <td className="px-2 py-1.5 text-red-500 font-semibold">₹ {Number(e.amount).toLocaleString('en-IN')}</td>
                       <td className="px-2 py-1.5 text-orange-500 font-semibold">
-                              ₹ {Number(e.advance_amount || 0).toLocaleString('en-IN')}
-                            </td>
+                        ₹ {Number(e.advance_amount || 0).toLocaleString('en-IN')}
+                      </td>
                       <td className="px-2 py-1.5 text-gray-500">{e.paid_by}</td>
                       <td className="px-2 py-1.5 text-gray-400">{e.notes || '—'}</td>
                       <td className="px-2 py-1.5">
-                        <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={11} /></button>
+                        <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500">
+                          <Trash2 size={11} />
+                        </button>
                       </td>
                     </tr>
                   ))}
+
+                  {/* Total Expenses */}
                   <tr className="bg-gray-50 font-semibold">
                     <td colSpan={2} className="px-2 py-2 text-gray-600">Total Expenses</td>
                     <td className="px-2 py-2 text-red-600">₹ {totalExpenses.toLocaleString('en-IN')}</td>
-                    <td colSpan={3} />
+                    <td colSpan={4} />
                   </tr>
+
+                  {/* Total Advance */}
                   <tr className="bg-orange-50 font-semibold">
-                    <td colSpan={2} className="px-2 py-2 text-orange-700">
-                      Total Advance
-                    </td>
-
-                    <td className="px-2 py-2 text-orange-600">
-                      ₹ {totalAdvance.toLocaleString('en-IN')}
-                    </td>
-
-                    <td colSpan={4}></td>
+                    <td colSpan={2} className="px-2 py-2 text-orange-700">Total Advance</td>
+                    <td className="px-2 py-2 text-orange-600">₹ {totalAdvance.toLocaleString('en-IN')}</td>
+                    <td colSpan={4} />
                   </tr>
+
+                  {/* Balance (Advance - Expenses) */}
+                  {(() => {
+                    const balance = totalAdvance - totalExpenses;
+                    const isCredit = balance >= 0;
+                    return (
+                      <tr className={`font-semibold ${isCredit ? 'bg-green-50' : 'bg-red-50'}`}>
+                        <td colSpan={2} className={`px-2 py-2 ${isCredit ? 'text-green-700' : 'text-red-700'}`}>
+                          {isCredit ? 'Advance Remaining' : 'Amount Pending'}
+                        </td>
+                        <td className={`px-2 py-2 ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                          ₹ {Math.abs(balance).toLocaleString('en-IN')}
+                        </td>
+                        <td colSpan={4} />
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             )}
@@ -1516,6 +1533,7 @@ const PhotoPreview = ({
                 )}
               </div>
             </div>
+
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-[12px] font-semibold text-gray-700 mb-3">Expenses & Cost</p>
               <div className="space-y-2 text-[11px]">
@@ -1524,51 +1542,82 @@ const PhotoPreview = ({
                 )}
                 <div className="flex justify-between">
                   <span className="text-gray-500">Supplier Charges</span>
-                  <span className="font-semibold text-orange-600">
-                    {fmtMoney(trip.charges_value)}
-                  </span>
+                  <span className="font-semibold text-orange-600">{fmtMoney(trip.charges_value)}</span>
                 </div>
-
                 <div className="flex justify-between">
                   <span className="text-gray-500">TDS Amount</span>
-                  <span className="font-semibold text-red-500">
-                    {fmtMoney(trip.tds_amount)}
-                  </span>
+                  <span className="font-semibold text-red-500">{fmtMoney(trip.tds_amount)}</span>
                 </div>
-                <div className="flex justify-between"><span className="text-gray-500">Trip Expenses</span><span className="font-semibold text-red-500">{fmtMoney(totalExpenses)}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Trip Expenses</span>
+                  <span className="font-semibold text-red-500">{fmtMoney(totalExpenses)}</span>
+                </div>
                 {expenses.map(e => (
                   <div key={e.id} className="flex justify-between pl-3 text-[10px]">
                     <span className="text-gray-400">{e.category}</span>
                     <span className="text-gray-500">₹ {Number(e.amount).toLocaleString('en-IN')}</span>
                   </div>
                 ))}
+
+                {/* ── Advance block ── */}
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Total Advance Given</span>
+                    <span className="font-semibold text-orange-500">{fmtMoney(totalAdvance)}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-gray-500">Advance Used (Expenses)</span>
+                    <span className="font-semibold text-red-400">{fmtMoney(totalExpenses)}</span>
+                  </div>
+                  {(() => {
+                    const advanceBalance = totalAdvance - totalExpenses;
+                    return (
+                      <div className="flex justify-between mt-1">
+                        <span className={advanceBalance >= 0 ? 'text-green-600' : 'text-red-500'}>
+                          {advanceBalance >= 0 ? 'Advance Remaining' : 'Amount Pending'}
+                        </span>
+                        <span className={`font-semibold ${advanceBalance >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {fmtMoney(Math.abs(advanceBalance))}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
+
+            {/* ── Summary ── */}
             <div className="col-span-2 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-4">
               <p className="text-[12px] font-semibold text-gray-700 mb-3">Summary</p>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                {[
-                  { label: 'Total Income', value: fmtMoney(trip.freight_amount), color: 'text-blue-600' },
-                 {
-                    label: 'Total Cost',
-                    value: fmtMoney(
-                      (trip.supplier_amount || 0) +
-                      (trip.tds_amount || 0) -
-                      (trip.charges_value || 0) +
-                      totalExpenses
-                    )
-                    , color: 'text-red-500'
-                  },
-                  { label: 'Net Profit', value: fmtMoney(profit -  ((trip.supplier_amount || 0) +
-                      (trip.tds_amount || 0) -
-                      (trip.charges_value || 0) +
-                      totalExpenses)), color: profit >= 0 ? 'text-green-700' : 'text-red-700' },
-                ].map(s => (
-                  <div key={s.label} className="bg-white rounded-lg p-3 border border-white/80">
-                    <p className="text-[10px] text-gray-400">{s.label}</p>
-                    <p className={`text-[16px] font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-                  </div>
-                ))}
+              <div className="grid grid-cols-4 gap-4 text-center">
+                {(() => {
+                  const totalCost =
+                    (trip.supplier_amount || 0) +
+                    (trip.tds_amount || 0) -
+                    (trip.charges_value || 0) +
+                    totalExpenses;
+
+                  const netProfit = (trip.freight_amount || 0) - totalCost;
+
+                  // Advance remaining = advance given minus what was actually spent (expenses)
+                  const advanceBalance = totalAdvance - totalExpenses;
+
+                  return [
+                    { label: 'Total Income',       value: fmtMoney(trip.freight_amount), color: 'text-blue-600' },
+                    { label: 'Total Cost',         value: fmtMoney(totalCost),           color: 'text-red-500' },
+                    { label: 'Net Profit',         value: fmtMoney(netProfit),           color: netProfit >= 0 ? 'text-green-700' : 'text-red-700' },
+                    {
+                      label: advanceBalance >= 0 ? 'Advance Remaining' : 'Advance Pending',
+                      value: fmtMoney(Math.abs(advanceBalance)),
+                      color: advanceBalance >= 0 ? 'text-orange-500' : 'text-red-600',
+                    },
+                  ].map(s => (
+                    <div key={s.label} className="bg-white rounded-lg p-3 border border-white/80">
+                      <p className="text-[10px] text-gray-400">{s.label}</p>
+                      <p className={`text-[16px] font-bold mt-0.5 ${s.color}`}>{s.value}</p>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           </div>
