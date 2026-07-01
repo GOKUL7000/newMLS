@@ -43,6 +43,7 @@ const nav = [
     { label: 'FC (Fitness) Due', href: '/fleet/fc-due' },
   ]},
   { icon: UserCheck, label: 'Drivers', href: '/drivers', children: [
+    { label: 'All Drivers', href: '/drivers' },
     { label: 'Drivers Ledger', href: '/drivers/ledger' },
   ]},
   { icon: Users, label: 'Customers', href: '/customers', children: [
