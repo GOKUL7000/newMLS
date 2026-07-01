@@ -1,150 +1,163 @@
 'use client';
-
-import { useEffect, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Truck, LogOut, MapPin, ChevronDown, ChevronUp, IndianRupee, Package } from 'lucide-react';
-import { getPortalSession, portalLogout, type PortalSession } from '@/lib/portalSession';
+import {
+  Truck, LogOut, Loader2, ChevronDown, ChevronUp,
+  MapPin, Package, Activity, Gauge,
+  ArrowRight,
+} from 'lucide-react';
 
-type Trip = {
+interface Session { portalUserId: string; role: string; entityId: string; username: string; name: string; }
+interface Trip {
   id: string; trip_no: string; trip_date: string;
-  origin: string; destination: string;
+  origin: string | null; destination: string | null;
   status: string; lr_no: string | null;
   start_km: number | null; end_km: number | null; total_km: number | null;
-  freight_amount: number;
-  customers: { name: string } | null;
+  freight_amount: number | null;
+  customers?: { name: string } | null;
+}
+
+const ACTIVE_STATUSES = ['Started', 'Loading', 'Unloading', 'TripCompleted', 'POPReceived', 'POPSubmitted'];
+const PENDING_GROUP = ['Pending', 'Started', 'Loading', 'Unloading'];
+
+const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  Pending:       { bg: 'bg-gray-100',   text: 'text-gray-600',   dot: 'bg-gray-400' },
+  Started:       { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500' },
+  Loading:       { bg: 'bg-yellow-100', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  Unloading:     { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' },
+  TripCompleted: { bg: 'bg-cyan-100',   text: 'text-cyan-700',   dot: 'bg-cyan-500' },
+  POPReceived:   { bg: 'bg-orange-100', text: 'text-orange-700', dot: 'bg-orange-500' },
+  POPSubmitted:  { bg: 'bg-sky-100',    text: 'text-sky-700',    dot: 'bg-sky-500' },
+  Settled:       { bg: 'bg-green-100',  text: 'text-green-700',  dot: 'bg-green-500' },
 };
 
-const TRIP_COLORS: Record<string, string> = {
-  Pending: 'bg-gray-100 text-gray-600', Started: 'bg-blue-100 text-blue-700',
-  Loading: 'bg-amber-100 text-amber-700', Unloading: 'bg-purple-100 text-purple-700',
-  TripCompleted: 'bg-teal-100 text-teal-700', POPReceived: 'bg-cyan-100 text-cyan-700',
-  POPSubmitted: 'bg-indigo-100 text-indigo-700', GenerateInvoice: 'bg-orange-100 text-orange-700',
-  Settled: 'bg-emerald-100 text-emerald-700',
-};
+const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
-const fmt = (n: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
-const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+function StatusBadge({ status }: { status: string }) {
+  const c = STATUS_COLORS[status] || { bg: 'bg-gray-100', text: 'text-gray-600', dot: 'bg-gray-400' };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${c.bg} ${c.text}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      {status}
+    </span>
+  );
+}
 
-export default function DriverPortalPage() {
+export default function DriverPortalDashboard() {
   const router = useRouter();
-  const [session, setSession] = useState<PortalSession | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedTrip, setExpandedTrip] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [filter, setFilter] = useState('All Trips');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => { init(); }, []);
-
-  async function init() {
-    const s = await getPortalSession();
-    if (!s || s.role !== 'driver') { router.push('/portal/login'); return; }
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const sessionRes = await fetch('/api/portal/session');
+    if (!sessionRes.ok) { router.push('/portal/login'); return; }
+    const s: Session = await sessionRes.json();
+    if (s.role !== 'driver') { router.push('/portal/login'); return; }
     setSession(s);
-    const res = await fetch(`/api/portal/driver-data?driverId=${s.entityId}`);
-    if (res.ok) {
-      const { trips } = await res.json();
-      setTrips(trips || []);
-    }
+    const tripsRes = await fetch(`/api/portal/driver-data?driverId=${s.entityId}`);
+    const data = await tripsRes.json();
+    setTrips(data.trips || []);
     setLoading(false);
-  }
+  }, [router]);
 
-  const filteredTrips = trips.filter(t => statusFilter === 'All' || t.status === statusFilter);
-  const activeTrips = trips.filter(t => !['Settled','Pending'].includes(t.status)).length;
-  const completedTrips = trips.filter(t => t.status === 'Settled').length;
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await fetch('/api/portal/logout', { method: 'POST' });
+    router.push('/portal/login');
+  };
+
   const totalKm = trips.reduce((s, t) => s + (t.total_km || 0), 0);
+  const activeCount = trips.filter(t => ACTIVE_STATUSES.includes(t.status)).length;
+  const completedCount = trips.filter(t => ['TripCompleted', 'POPReceived', 'POPSubmitted', 'Settled'].includes(t.status)).length;
 
-  if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+  const filtered = trips.filter(t => {
+    if (filter === 'All Trips') return true;
+    if (filter === 'Pending') return PENDING_GROUP.includes(t.status);
+    if (filter === 'Completed') return !PENDING_GROUP.includes(t.status);
+    return true;
+  });
+
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center gap-2 text-gray-400">
+      <Loader2 size={16} className="animate-spin" /> Loading…
+    </div>
+  );
+  if (!session) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-green-600 rounded-xl flex items-center justify-center">
-              <Truck className="w-5 h-5 text-white" />
+      {/* Top Nav */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
+              <Truck size={16} className="text-white" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-900">MLS Transports</p>
-              <p className="text-xs text-gray-400">Driver Portal</p>
+              <p className="text-[13px] font-bold text-gray-800 leading-none">MLS Transports</p>
+              <p className="text-[10px] text-gray-400 leading-none mt-0.5">Driver Portal</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-semibold text-gray-900">{session?.name}</p>
-              <p className="text-xs text-gray-400">@{session?.username}</p>
+            <div className="text-right">
+              <p className="text-[12px] font-semibold text-gray-700">{session.name}</p>
+              <p className="text-[10px] text-gray-400">@{session.username}</p>
             </div>
-            <button onClick={portalLogout} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
-              <LogOut className="w-4 h-4" /> Sign Out
+            <button onClick={handleLogout} disabled={loggingOut}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors">
+              {loggingOut ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={13} />}
+              Sign Out
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+        {/* Greeting */}
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Hello, {session?.name?.split(' ')[0]} 👋</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Your assigned trips overview</p>
+          <h1 className="text-[22px] font-bold text-gray-800">Hello, {session.name} 👋</h1>
+          <p className="text-[13px] text-gray-400 mt-0.5">Your assigned trips overview</p>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Stat Cards */}
+        <div className="grid grid-cols-4 gap-4">
           {[
-            { label: 'Total Trips', value: String(trips.length), color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Active Trips', value: String(activeTrips), color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Completed', value: String(completedTrips), color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { label: 'Total KM', value: `${totalKm.toLocaleString('en-IN')} km`, color: 'text-purple-600', bg: 'bg-purple-50' },
-          ].map(({ label, value, color, bg }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mb-2`}>
-                <Package className={`w-4 h-4 ${color}`} />
+            { label: 'Total Trips', value: trips.length, icon: <Package size={20} className="text-blue-500" />, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Active Trips', value: activeCount, icon: <Activity size={20} className="text-orange-500" />, color: 'text-orange-500', bg: 'bg-orange-50' },
+            { label: 'Completed', value: completedCount, icon: <Package size={20} className="text-green-500" />, color: 'text-green-600', bg: 'bg-green-50' },
+            { label: 'Total KM', value: `${totalKm.toLocaleString('en-IN')} km`, icon: <Gauge size={20} className="text-purple-500" />, color: 'text-purple-600', bg: 'bg-purple-50' },
+          ].map(card => (
+            <div key={card.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+              <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center mb-3`}>
+                {card.icon}
               </div>
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+              <p className={`text-[26px] font-bold ${card.color} leading-none`}>{card.value}</p>
+              <p className="text-[12px] text-gray-400 mt-1.5">{card.label}</p>
             </div>
           ))}
         </div>
 
-        {/* Filter */}
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="All">All Trips</option>
-          {['Pending','Started','Loading','Unloading','TripCompleted','POPReceived','POPSubmitted','GenerateInvoice','Settled'].map(s => <option key={s}>{s}</option>)}
-        </select>
-
-        {/* Trip list */}
-        <div className="space-y-2">
-          {filteredTrips.length === 0
-            ? <div className="bg-white rounded-xl border border-gray-200 py-14 text-center"><Truck className="w-10 h-10 text-gray-300 mx-auto mb-2" /><p className="text-sm text-gray-400">No trips found</p></div>
-            : filteredTrips.map(trip => (
-              <div key={trip.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <button onClick={() => setExpandedTrip(expandedTrip === trip.id ? null : trip.id)}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                  <div className="text-left">
-                    <p className="text-sm font-bold text-blue-600">{trip.trip_no}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <MapPin className="w-3 h-3 text-gray-400" />
-                      <p className="text-xs text-gray-500">{trip.origin || '—'} → {trip.destination || '—'}</p>
-                    </div>
-                    {trip.customers?.name && <p className="text-xs text-gray-400 mt-0.5">Customer: {trip.customers.name}</p>}
-                  </div>
+        {/* Trip List */}
+        <button onClick={() => router.push('/portal/driver/trips')}
+                  className="w-full bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex items-center justify-between hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${TRIP_COLORS[trip.status] || 'bg-gray-100 text-gray-600'}`}>{trip.status}</span>
-                    {expandedTrip === trip.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                  </div>
-                </button>
-                {expandedTrip === trip.id && (
-                  <div className="px-5 pb-4 border-t border-gray-100 bg-gray-50">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3">
-                      <div><p className="text-xs text-gray-400">Trip Date</p><p className="text-sm font-medium text-gray-800 mt-0.5">{fmtDate(trip.trip_date)}</p></div>
-                      <div><p className="text-xs text-gray-400">LR Number</p><p className="text-sm font-medium text-gray-800 mt-0.5">{trip.lr_no || '—'}</p></div>
-                      <div><p className="text-xs text-gray-400">Start KM</p><p className="text-sm font-medium text-gray-800 mt-0.5">{trip.start_km?.toLocaleString('en-IN') || '—'}</p></div>
-                      <div><p className="text-xs text-gray-400">End KM</p><p className="text-sm font-medium text-gray-800 mt-0.5">{trip.end_km?.toLocaleString('en-IN') || '—'}</p></div>
-                      <div><p className="text-xs text-gray-400">Total KM</p><p className="text-sm font-bold text-gray-900 mt-0.5">{trip.total_km ? `${trip.total_km.toLocaleString('en-IN')} km` : '—'}</p></div>
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <Truck size={18} className="text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[13px] font-semibold text-gray-800">My Trips</p>
+                      <p className="text-[11px] text-gray-400">Update status, log expenses & advance</p>
                     </div>
                   </div>
-                )}
-              </div>
-            ))}
-        </div>
+                  <ArrowRight size={15} className="text-gray-300" />
+                </button>
       </main>
     </div>
   );

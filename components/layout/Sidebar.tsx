@@ -42,7 +42,9 @@ const nav = [
     { label: 'Permit Due', href: '/fleet/permit-due' },
     { label: 'FC (Fitness) Due', href: '/fleet/fc-due' },
   ]},
-  { icon: UserCheck, label: 'Drivers', href: '/drivers' },
+  { icon: UserCheck, label: 'Drivers', href: '/drivers', children: [
+    { label: 'Drivers Ledger', href: '/drivers/ledger' },
+  ]},
   { icon: Users, label: 'Customers', href: '/customers', children: [
     { label: 'All Customers', href: '/customers' },
     { label: 'Customer Ledger', href: '/customers/ledger' },
