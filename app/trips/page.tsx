@@ -310,7 +310,7 @@ export default function TripsPage() {
       customer_id: form.customer_id || null,
       vehicle_id: form.vehicle_id || null,
       ownership: form.ownership,
-      driver_id: form.ownership === 'My Truck' ? (form.driver_id || null) : null,
+      driver_id: form.driver_id || null,
       supplier_id: form.ownership === 'Marker Truck' ? (form.supplier_id || null) : null,
       origin: form.origin || null,
       destination: form.destination || null,
@@ -483,14 +483,14 @@ export default function TripsPage() {
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                    {['LR No','Date','Customer','Vehicle','Route','Material','Freight','Est. Profit','Status',''].map(h => (
+                    {['LR No','Date','Customer','Vehicle','Supplier','Driver','Route','Material','Freight','Est. Profit','Status',''].map(h => (
                       <th key={h} className="text-left px-2 py-2 font-medium">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.length === 0
-                    ? <tr><td colSpan={9} className="text-center py-12 text-gray-400">No trips found.</td></tr>
+                    ? <tr><td colSpan={12} className="text-center py-12 text-gray-400">No trips found.</td></tr>
                     : paginated.map(t => (
                       <tr key={t.id}
                         onClick={() => setSelectedTrip(selectedTrip?.id === t.id ? null : t)}
@@ -500,6 +500,8 @@ export default function TripsPage() {
                         <td className="px-2 py-2 text-gray-500">{fmtDate(t.trip_date)}</td>
                         <td className="px-2 py-2 text-gray-700 font-medium max-w-[120px] truncate">{t.customer_name}</td>
                         <td className="px-2 py-2 text-gray-500">{t.vehicle_no}</td>
+                        <td className="px-2 py-2 text-gray-500">{t.supplier_name || '—'}</td>
+                        <td className="px-2 py-2 text-gray-500">{t.driver_name || '—'}</td>
                         <td className="px-2 py-2 text-gray-500 max-w-[120px] truncate">{t.origin} → {t.destination}</td>
                         <td className="px-2 py-2 text-gray-400">{t.material || '—'}</td>
                         <td className="px-2 py-2 text-gray-700 font-medium">{fmtMoney(t.freight_amount)}</td>
@@ -677,22 +679,42 @@ export default function TripsPage() {
                     </select>
                   </Field>
 
-                  {form.ownership === 'My Truck' ? (
-                    <Field label="Driver">
-                      <select value={form.driver_id} onChange={f('driver_id')} className={inputCls}>
-                        <option value="">— Select Driver —</option>
-                        {drivers.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-                      </select>
-                    </Field>
-                  ) : (
+                  {/* Supplier - Show Only for Supplier Truck */}
+                  {form.ownership !== "My Truck" && (
                     <Field label="Supplier">
-                      <select value={form.supplier_id} onChange={f('supplier_id')} className={inputCls}>
+                      <select
+                        value={form.supplier_id}
+                        onChange={f("supplier_id")}
+                        className={inputCls}
+                      >
                         <option value="">— Select Supplier —</option>
-                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        {suppliers.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
                       </select>
                     </Field>
                   )}
 
+
+                  {/* Driver - Always Show */}
+                  <Field label="Driver">
+                    <select
+                      value={form.driver_id}
+                      onChange={f("driver_id")}
+                      className={inputCls}
+                    >
+                      <option value="">— Select Driver —</option>
+                      {drivers.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  
                   <Field label="Origin *">
                     <input value={form.origin} onChange={f('origin')} placeholder="From city / location" className={inputCls} />
                   </Field>

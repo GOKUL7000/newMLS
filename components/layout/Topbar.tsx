@@ -27,15 +27,15 @@ export default function Topbar({ title, breadcrumbs = [] }: TopbarProps) {
         )}
       </div>
 
-      <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] font-medium text-gray-600 hover:bg-gray-100 transition">
+      {/* <button className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] font-medium text-gray-600 hover:bg-gray-100 transition">
         <Calendar size={12} className="text-gray-400" />
         07 Jun 2026
         <ChevronDown size={11} className="text-gray-400" />
-      </button>
+      </button> */}
 
       <button className="relative w-7 h-7 flex items-center justify-center bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
         <Bell size={13} className="text-gray-500" />
-        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">5</span>
+        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">0</span>
       </button>
 
       <div className="flex items-center gap-2">

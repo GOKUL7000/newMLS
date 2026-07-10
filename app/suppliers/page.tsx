@@ -375,8 +375,8 @@ export default function SuppliersPage() {
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: 'Total Active Suppliers', value: String(stats.active), sub: 'Active Suppliers', color: 'text-blue-600' },
-            { label: 'Invoice This Month', value: '₹ 85,00,000', sub: `From 45 Suppliers`, color: 'text-green-600' },
-            { label: 'Paid This Month', value: '₹ 85,00,000', sub: 'From 45 Suppliers', color: 'text-gray-500' },
+            { label: 'Invoice This Month', value: '₹ 0', sub: `From 0 Suppliers`, color: 'text-green-600' },
+            { label: 'Paid This Month', value: '₹ 0', sub: 'From 0 Suppliers', color: 'text-gray-500' },
             { label: 'Total Payable', value: fmt(stats.totalPayable), sub: 'Outstanding', color: 'text-red-500' },
             // { label: 'Fuel Suppliers', value: String(suppliers.filter(s => s.category === 'Fuel').length), sub: 'Fuel Category', color: 'text-orange-500' },
             // { label: 'Maintenance', value: String(suppliers.filter(s => s.category === 'Maintenance').length), sub: 'Maintenance Category', color: 'text-purple-600' },
@@ -513,7 +513,7 @@ export default function SuppliersPage() {
         </div>
 
         {/* Charts + Upcoming Payments */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <h3 className="text-[13px] font-semibold text-gray-700 mb-3">Top Suppliers by Spend (This Month)</h3>
             {topSuppliers.map(s => (<div key={s.name} className="flex items-center gap-2 mb-2"><span className="text-[10px] text-gray-500 w-28 truncate">{s.name}</span><div className="flex-1 bg-gray-100 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full" style={{width:`${s.amount/392500*100}%`}}/></div><span className="text-[10px] font-semibold text-gray-700 w-20 text-right">₹ {(s.amount/100000).toFixed(2)}L</span></div>))}
@@ -529,7 +529,7 @@ export default function SuppliersPage() {
               <div className="text-right"><p className="text-[11px] font-semibold text-red-500">₹ {p.amount.toLocaleString('en-IN')}</p><span className={`text-[9px] px-1.5 py-0.5 rounded ${p.status==='Due Soon'?'bg-red-100 text-red-600':'bg-yellow-100 text-yellow-700'}`}>{p.status}</span></div>
             </div>))}
           </div>
-        </div>
+        </div> */}
 
         {/* Quick Actions */}
         {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">

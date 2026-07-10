@@ -66,7 +66,7 @@ export default function DashboardPage() {
         <p className="text-xs text-gray-500">Overview of your transport business</p>
 
         {/* Top KPI Cards */}
-        <div className="grid grid-cols-6 gap-3">
+        {/* <div className="grid grid-cols-6 gap-3">
           {[
             { label: 'Total Revenue', value: '₹ 85,00,000', sub: '↑ 12.5% vs Last Month', color: 'text-blue-600', icon: '₹', bg: 'bg-blue-50' },
             { label: 'Total Expenses', value: '₹ 46,20,000', sub: '↑ 8.3% vs Last Month', color: 'text-red-500', icon: '↓', bg: 'bg-red-50' },
@@ -86,10 +86,10 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* Trip Status Row */}
-        <div className="grid grid-cols-7 gap-2">
+        {/* <div className="grid grid-cols-7 gap-2">
           {[
             { label: 'Total Trips', value: '125', sub: 'This Month' },
             { label: 'Completed Trips', value: '90', sub: 'This Month', color: 'text-green-600' },
@@ -105,12 +105,12 @@ export default function DashboardPage() {
               <p className="text-[9px] text-gray-400">{c.sub}</p>
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* Charts Row */}
         <div className="grid grid-cols-3 gap-3">
           {/* Trip Status Donut */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <h3 className="text-[13px] font-semibold text-gray-700 mb-3">Trip Status</h3>
             <div className="flex items-center gap-3">
               <ResponsiveContainer width={120} height={120}>
@@ -131,10 +131,10 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Revenue Trend */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold text-gray-700">Monthly Revenue Trend</h3>
               <select value={revenueFilter} onChange={e => setRevenueFilter(e.target.value)} className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">
@@ -150,10 +150,10 @@ export default function DashboardPage() {
                 <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="url(#rev)" strokeWidth={2} dot={{ r: 2, fill: '#3b82f6' }} />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </div> */}
 
           {/* Expense Breakdown */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold text-gray-700">Expense Breakdown</h3>
               <select value={expenseFilter} onChange={e => setExpenseFilter(e.target.value)} className="text-[10px] border border-gray-200 rounded px-1.5 py-0.5 text-gray-500">
@@ -178,13 +178,13 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Bottom Row */}
         <div className="grid grid-cols-3 gap-3">
           {/* Vehicle Status */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <h3 className="text-[13px] font-semibold text-gray-700 mb-3">Vehicle Status</h3>
             <div className="flex items-center gap-3">
               <ResponsiveContainer width={100} height={100}>
@@ -205,10 +205,10 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-center text-[10px] text-gray-400 mt-2">50 Total Trucks</p>
-          </div>
+          </div> */}
 
           {/* Top 5 Vehicles */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <h3 className="text-[13px] font-semibold text-gray-700 mb-3">Top 5 Vehicles by Revenue</h3>
             <div className="space-y-2">
               {topVehicles.map((v) => (
@@ -221,10 +221,10 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* Alerts */}
-          <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+          {/* <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold text-gray-700">Important Alerts</h3>
               <a href="#" className="text-[10px] text-blue-600">View All</a>
@@ -247,11 +247,11 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Recent Trips + Today Summary */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* <div className="grid grid-cols-2 gap-3">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[13px] font-semibold text-gray-700">Recent Trips</h3>
@@ -294,7 +294,7 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

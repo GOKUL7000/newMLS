@@ -398,11 +398,11 @@ export default function CustomersPage() {
         <div className="grid grid-cols-6 gap-3">
           {[
             { label: 'Total Active Customers', value: String(stats.activeCustomers), sub: 'All Customers', color: 'text-blue-600' },
-            { label: 'Revenue This Month', value: '₹ 85,00,000', sub: 'Total Revenue', color: 'text-green-600' },
-            { label: 'Invoice This Month', value: '₹ 85,00,000', sub: `From 45 Customers`, color: 'text-green-600' },
-            { label: 'Received This Month', value: '₹ 28,75,000', sub: 'From 45 Customers', color: 'text-green-600' },
+            { label: 'Revenue This Month', value: '₹ 0', sub: 'Total Revenue', color: 'text-green-600' },
+            { label: 'Invoice This Month', value: '₹ 0', sub: `From 0 Customers`, color: 'text-green-600' },
+            { label: 'Received This Month', value: '₹ 0', sub: 'From 0 Customers', color: 'text-green-600' },
             { label: 'Outstanding Amount', value: fmt(stats.outstandingAmount), sub: `From ${stats.outstandingCustomers} Customers`, color: 'text-orange-500' },            
-            { label: 'Invoices This Month', value: '68', sub: 'Total Invoices', color: 'text-blue-600' },
+            { label: 'Invoices This Month', value: '0', sub: 'Total Invoices', color: 'text-blue-600' },
             
           ].map(c => (
             <div key={c.label} className="bg-white rounded-xl p-3.5 border border-gray-100 shadow-sm">
@@ -540,7 +540,7 @@ export default function CustomersPage() {
         </div>
 
         {/* Charts + Recent Payments */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* <div className="grid grid-cols-3 gap-3">
           <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
             <h3 className="text-[13px] font-semibold text-gray-700 mb-3">Top Customers by Revenue</h3>
             {topCustomers.map(c => (
@@ -580,7 +580,7 @@ export default function CustomersPage() {
               ))}</tbody>
             </table>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* ─── Add / Edit Modal ─────────────────────────────────────────────── */}

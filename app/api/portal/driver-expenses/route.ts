@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { jwtVerify } from 'jose';
+import { getPortalSession } from '@/lib/portal-auth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,82 +8,121 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.PORTAL_JWT_SECRET || 'mls-transports-portal-secret-change-in-production'
-);
-
-// Trip statuses at/after which a driver may no longer log new expenses —
+// Trip statuses at/after which a driver may no longer log/edit expenses —
 // admin takes over from TripCompleted onward.
 const LOCKED_STATUSES = ['TripCompleted', 'POPReceived', 'POPSubmitted', 'GenerateInvoice', 'Settled'];
 
-async function getDriverId(req: NextRequest) {
-  const token = req.cookies.get('mls_portal_session')?.value;
-  if (!token) return null;
-  const { payload } = await jwtVerify(token, JWT_SECRET);
-  if (payload.role !== 'driver') return null;
-  return payload.entityId as string;
+async function getDriverId(req: NextRequest): Promise<string | null> {
+  const session = await getPortalSession(req);
+  if (!session || session.role !== 'driver') return null;
+  return session.entityId;
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const driverId = await getDriverId(req);
-    if (!driverId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const driverId = await getDriverId(req);
+  if (!driverId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const tripId = new URL(req.url).searchParams.get('tripId');
-    if (!tripId) return NextResponse.json({ error: 'tripId is required' }, { status: 400 });
+  const tripId = new URL(req.url).searchParams.get('tripId');
+  if (!tripId) return NextResponse.json({ error: 'tripId is required' }, { status: 400 });
 
-    // Verify the trip belongs to this driver before returning expenses.
-    const { data: trip } = await supabaseAdmin
-      .from('trips')
-      .select('id, driver_id')
-      .eq('id', tripId)
-      .single();
+  const { data: trip } = await supabaseAdmin
+    .from('trips')
+    .select('id, driver_id')
+    .eq('id', tripId)
+    .single();
 
-    if (!trip || trip.driver_id !== driverId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { data: expenses, error } = await supabaseAdmin
-      .from('trip_expenses')
-      .select('*')
-      .eq('trip_id', tripId)
-      .order('expense_date', { ascending: false });
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({ expenses: expenses || [] });
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!trip || trip.driver_id !== driverId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  const { data: expenses, error } = await supabaseAdmin
+    .from('trip_expenses')
+    .select('*')
+    .eq('trip_id', tripId)
+    .order('expense_date', { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ expenses: expenses || [] });
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    const driverId = await getDriverId(req);
-    if (!driverId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const driverId = await getDriverId(req);
+  if (!driverId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await req.json();
-    const { tripId, expense_date, category, amount, advance_amount, paid_by, notes, receipt_doc } = body;
+  const body = await req.json();
+  const { tripId, expense_date, category, amount, advance_amount, paid_by, notes, receipt_doc } = body;
 
-    if (!tripId) return NextResponse.json({ error: 'tripId is required' }, { status: 400 });
-    if (!amount && !advance_amount) {
-      return NextResponse.json({ error: 'Enter an expense amount and/or advance amount' }, { status: 400 });
-    }
+  if (!tripId) return NextResponse.json({ error: 'tripId is required' }, { status: 400 });
+  if (!amount && !advance_amount) {
+    return NextResponse.json({ error: 'Enter an expense amount and/or advance amount' }, { status: 400 });
+  }
 
-    const { data: trip } = await supabaseAdmin
-      .from('trips')
-      .select('id, driver_id, status, deleted')
-      .eq('id', tripId)
-      .single();
+  const { data: trip } = await supabaseAdmin
+    .from('trips')
+    .select('id, driver_id, status, deleted')
+    .eq('id', tripId)
+    .single();
 
-    if (!trip || trip.deleted) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
-    if (trip.driver_id !== driverId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    if (LOCKED_STATUSES.includes(trip.status)) {
-      return NextResponse.json({ error: 'This trip is completed — expenses can no longer be added.' }, { status: 400 });
-    }
+  if (!trip || trip.deleted) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+  if (trip.driver_id !== driverId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (LOCKED_STATUSES.includes(trip.status)) {
+    return NextResponse.json({ error: 'This trip is completed — expenses can no longer be added.' }, { status: 400 });
+  }
 
-    const { error } = await supabaseAdmin.from('trip_expenses').insert({
-      trip_id: tripId,
+  const { error } = await supabaseAdmin.from('trip_expenses').insert({
+    trip_id: tripId,
+    expense_date: expense_date || new Date().toISOString().slice(0, 10),
+    category: category || 'Other',
+    amount: amount ? parseFloat(amount) : 0,
+    advance_amount: advance_amount ? parseFloat(advance_amount) : 0,
+    paid_by: paid_by || 'Driver',
+    notes: notes || null,
+    receipt_doc: receipt_doc || null,
+  });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
+
+// Edit an existing expense. Body: { expenseId, expense_date, category, amount, advance_amount, paid_by, notes, receipt_doc }
+export async function PUT(req: NextRequest) {
+  const driverId = await getDriverId(req);
+  if (!driverId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await req.json();
+  const { expenseId, expense_date, category, amount, advance_amount, paid_by, notes, receipt_doc } = body;
+
+  if (!expenseId) return NextResponse.json({ error: 'expenseId is required' }, { status: 400 });
+  if (!amount && !advance_amount) {
+    return NextResponse.json({ error: 'Enter an expense amount and/or advance amount' }, { status: 400 });
+  }
+
+  // Load the expense and its parent trip to verify ownership + lock status.
+  const { data: expense } = await supabaseAdmin
+    .from('trip_expenses')
+    .select('id, trip_id')
+    .eq('id', expenseId)
+    .single();
+
+  if (!expense) return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+
+  const { data: trip } = await supabaseAdmin
+    .from('trips')
+    .select('id, driver_id, status, deleted')
+    .eq('id', expense.trip_id)
+    .single();
+
+  if (!trip || trip.deleted) return NextResponse.json({ error: 'Trip not found' }, { status: 404 });
+  if (trip.driver_id !== driverId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (LOCKED_STATUSES.includes(trip.status)) {
+    return NextResponse.json({ error: 'This trip is completed — expenses can no longer be edited.' }, { status: 400 });
+  }
+
+  const { error } = await supabaseAdmin
+    .from('trip_expenses')
+    .update({
       expense_date: expense_date || new Date().toISOString().slice(0, 10),
       category: category || 'Other',
       amount: amount ? parseFloat(amount) : 0,
@@ -91,12 +130,10 @@ export async function POST(req: NextRequest) {
       paid_by: paid_by || 'Driver',
       notes: notes || null,
       receipt_doc: receipt_doc || null,
-    });
+    })
+    .eq('id', expenseId);
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  return NextResponse.json({ success: true });
 }

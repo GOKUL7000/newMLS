@@ -35,6 +35,8 @@ interface Vehicle {
   driver_id: string | null;
   rc_no: string | null;
   rc_doc: string | null;
+  engine_no: string | null;
+  chassis_no: string | null;
   insurance_valid_up_to: string | null;
   insurance_doc: string | null;
   permit_valid_up_to: string | null;
@@ -59,6 +61,7 @@ type FormState = {
   capacity: string; body_length: string; ownership: 'My Truck' | 'Marker Truck';
   supplier_id: string; driver_id: string;
   rc_no: string; rc_doc: string;
+  engine_no: string; chassis_no: string;
   insurance_valid_up_to: string; insurance_doc: string;
   permit_valid_up_to: string; permit_doc: string;
   fc_valid_up_to: string; fc_doc: string;
@@ -74,6 +77,7 @@ const EMPTY_FORM: FormState = {
   capacity: '', body_length: '', ownership: 'My Truck',
   supplier_id: '', driver_id: '',
   rc_no: '', rc_doc: '',
+  engine_no: '', chassis_no: '',
   insurance_valid_up_to: '', insurance_doc: '',
   permit_valid_up_to: '', permit_doc: '',
   fc_valid_up_to: '', fc_doc: '',
@@ -352,6 +356,7 @@ export default function FleetPage() {
       ownership: v.ownership || 'My Truck',
       supplier_id: v.supplier_id || '', driver_id: v.driver_id || '',
       rc_no: v.rc_no || '', rc_doc: v.rc_doc || '',
+      engine_no: v.engine_no || '', chassis_no: v.chassis_no || '',
       insurance_valid_up_to: v.insurance_valid_up_to || '', insurance_doc: v.insurance_doc || '',
       permit_valid_up_to: v.permit_valid_up_to || '', permit_doc: v.permit_doc || '',
       fc_valid_up_to: v.fc_valid_up_to || '', fc_doc: v.fc_doc || '',
@@ -430,6 +435,8 @@ export default function FleetPage() {
       driver_id: form.ownership === 'My Truck' && form.driver_id ? form.driver_id : null,
       rc_no: form.rc_no || null,
       rc_doc: form.rc_doc || null,
+      engine_no: form.engine_no || null,
+      chassis_no: form.chassis_no || null,
       insurance_valid_up_to: form.insurance_valid_up_to || null,
       insurance_doc: form.insurance_doc || null,
       permit_valid_up_to: form.permit_valid_up_to || null,
@@ -890,6 +897,8 @@ export default function FleetPage() {
                     <FileUploadBtn label="RC Document" storagePath={form.rc_doc}
                       uploading={uploadingField === 'rc_doc'} onChange={file => handleFileChange(file, 'rc_doc')} />
                   </div>
+                  <Field label="Engine Number"><input value={form.engine_no} onChange={f('engine_no')} placeholder="Engine number" className={inputCls} /></Field>
+                  <Field label="Chassis Number"><input value={form.chassis_no} onChange={f('chassis_no')} placeholder="Chassis number" className={inputCls} /></Field>
                   <Field label="Insurance Valid Up To"><input type="date" value={form.insurance_valid_up_to} onChange={f('insurance_valid_up_to')} className={inputCls} /></Field>
                   <div className="col-span-1">
                     <FileUploadBtn label="Insurance Document" storagePath={form.insurance_doc}

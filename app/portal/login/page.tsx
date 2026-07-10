@@ -33,7 +33,7 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+    <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 relative overflow-hidden"
       style={{
         background: 'radial-gradient(ellipse at 60% 40%, #1a3a6b 0%, #0f1f45 40%, #080f24 100%)',
       }}>
@@ -47,19 +47,19 @@ export default function PortalLoginPage() {
 
       <div className="relative w-full max-w-md z-10">
         {/* Logo + title */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-900/50">
-            <Truck size={28} className="text-white" />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-blue-900/50">
+            <Truck size={26} className="text-white sm:w-7 sm:h-7" />
           </div>
-          <h1 className="text-[22px] font-bold text-white tracking-wide">MLS Transports</h1>
-          <p className="text-blue-300 text-[13px] mt-1">Partner Portal</p>
+          <h1 className="text-[19px] sm:text-[22px] font-bold text-white tracking-wide">MLS Transports</h1>
+          <p className="text-blue-300 text-[12px] sm:text-[13px] mt-1">Partner Portal</p>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl p-8 shadow-2xl"
+        <div className="rounded-2xl p-5 sm:p-8 shadow-2xl"
           style={{ background: 'rgba(15, 30, 70, 0.85)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
-          <h2 className="text-[18px] font-bold text-white mb-1">Sign in</h2>
-          <p className="text-[13px] text-blue-300 mb-6">Use the credentials provided by MLS Transports</p>
+          <h2 className="text-[17px] sm:text-[18px] font-bold text-white mb-1">Sign in</h2>
+          <p className="text-[12px] sm:text-[13px] text-blue-300 mb-5 sm:mb-6">Use the credentials provided by MLS Transports</p>
 
           {error && (
             <div className="mb-4 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[12px]">
@@ -123,7 +123,7 @@ export default function PortalLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-[12px] text-blue-400 mt-5">
+        <p className="text-center text-[11px] sm:text-[12px] text-blue-400 mt-4 sm:mt-5 px-2">
           Contact MLS Transports if you need your login credentials.
         </p>
       </div>
