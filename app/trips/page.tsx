@@ -11,6 +11,8 @@ import {
 
 const supabase = createClientComponentClient();
 const TRIP_BUCKET = 'Trips';
+const DIESEL_BUCKET = 'Diesel';
+const ADBLUE_BUCKET = 'Adblue';
 
 
 
@@ -84,7 +86,7 @@ interface Toast { id: number; type: ToastType; message: string; }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const BILL_TYPES = ['Fixed','Per Tonne','Per Kg','Per Km','Per Trip','Per Day','Per Hour','Per Litre','Per Bag'];
-const EXPENSE_CATEGORIES = ['Diesel','Toll','Driver Bata','Repair','Tyre','Loading Charges','Unloading Charges','Other'];
+const EXPENSE_CATEGORIES = ['Diesel','AdBlue','Toll','Driver Bata','Repair','Tyre','Loading Charges','Unloading Charges','Other'];
 
 const PIPELINE: { key: string; label: string; color: string }[] = [
   { key: 'Pending',         label: 'Pending',          color: '#6b7280' },
@@ -963,8 +965,11 @@ function TripDetailPanel({ trip, onClose, onRefresh, toast, drivers, suppliers }
   const [showExpModal, setShowExpModal] = useState(false);
   const [expForm, setExpForm] = useState({
     expense_date: new Date().toISOString().split('T')[0],
-    category: 'Diesel', amount: '', paid_by: 'Company', notes: '',advance_amount: '',
+    category: 'Diesel', amount: '', paid_by: 'Company', notes: '', advance_amount: '',
+    bunk_name: '', litres: '', rate: '', km_reading: '', bill_photo: '', meter_photo: '',
+    adblue_litres: '', adblue_amount: '', adblue_km_reading: '', adblue_bill_photo: '', adblue_tank_photo: '',
   });
+  const [expUploading, setExpUploading] = useState<string | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
   const [stepForm, setStepForm] = useState<Record<string, string | number>>({});
   const [showStepModal, setShowStepModal] = useState(false);
@@ -1056,8 +1061,18 @@ const PhotoPreview = ({
     return path;
   };
 
-  const openStepDoc = async (path: string) => {
-    const { data, error } = await supabase.storage.from(TRIP_BUCKET).createSignedUrl(path, 3600);
+  const uploadExpenseFile = async (file: File, field: string, bucket: string, prefix: string): Promise<string | null> => {
+    setExpUploading(field);
+    const ext = file.name.split('.').pop();
+    const path = `${prefix}/${field}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+    setExpUploading(null);
+    if (error) { toast('error', `Upload failed: ${error.message}`); return null; }
+    return path;
+  };
+
+  const openStepDoc = async (path: string, bucket: string = TRIP_BUCKET) => {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
     if (error || !data?.signedUrl) { toast('error', 'Could not open document'); return; }
     window.open(data.signedUrl, '_blank');
   };
@@ -1065,7 +1080,11 @@ const PhotoPreview = ({
   // ── Fetch expenses ─────────────────────────────────────────────────────────
   const fetchExpenses = useCallback(async () => {
     setExpLoading(true);
-    const { data } = await supabase.from('trip_expenses').select('*').eq('trip_id', trip.id).order('expense_date');
+    const { data } = await supabase
+      .from('trip_expenses')
+      .select('*, diesel_expenses(bunk_name, litres, rate, km_reading, bill_photo, meter_photo), adblue_expenses(litres, km_reading, bill_photo, tank_photo)')
+      .eq('trip_id', trip.id)
+      .order('expense_date');
     setExpenses(data || []);
     setExpLoading(false);
   }, [trip.id]);
@@ -1133,22 +1152,67 @@ const PhotoPreview = ({
 
   // ── Expense helpers ────────────────────────────────────────────────────────
   const saveExpense = async () => {
-  const {error} = await supabase.from('trip_expenses').insert({
-    trip_id: trip.id,
-    expense_date: expForm.expense_date,
-    category: expForm.category,
-    amount: parseFloat(expForm.amount) || 0,
-    advance_amount: parseFloat(expForm.advance_amount) || 0,
-    paid_by: expForm.paid_by,
-    notes: expForm.notes || null,
-  });
-    if (error) toast('error', 'Failed: ' + error.message);
-    else {
-      toast('success', 'Expense added');
-      setShowExpModal(false);
-      fetchExpenses();
-      setExpForm({ expense_date: new Date().toISOString().split('T')[0], category: 'Diesel', amount: '', paid_by: 'Company', notes: '',advance_amount:'' });
+    const isDiesel = expForm.category === 'Diesel';
+    const isAdBlue = expForm.category === 'AdBlue';
+
+    const computedDieselAmount = parseFloat(expForm.litres || '0') * parseFloat(expForm.rate || '0');
+    const finalAmount = isDiesel
+      ? computedDieselAmount
+      : isAdBlue
+      ? parseFloat(expForm.adblue_amount || '0')
+      : (parseFloat(expForm.amount) || 0);
+
+    const { data: inserted, error } = await supabase.from('trip_expenses').insert({
+      trip_id: trip.id,
+      expense_date: expForm.expense_date,
+      category: expForm.category,
+      amount: finalAmount,
+      advance_amount: parseFloat(expForm.advance_amount) || 0,
+      paid_by: expForm.paid_by,
+      notes: expForm.notes || null,
+    }).select().single();
+
+    if (error) { toast('error', 'Failed: ' + error.message); return; }
+
+    if (isDiesel) {
+      const { error: dieselError } = await supabase.from('diesel_expenses').insert({
+        trip_expense_id: inserted.id,
+        trip_id: trip.id,
+        expense_date: expForm.expense_date,
+        bunk_name: expForm.bunk_name || null,
+        litres: parseFloat(expForm.litres) || null,
+        rate: parseFloat(expForm.rate) || null,
+        amount: finalAmount,
+        km_reading: parseFloat(expForm.km_reading) || null,
+        bill_photo: expForm.bill_photo || null,
+        meter_photo: expForm.meter_photo || null,
+      });
+      if (dieselError) toast('error', 'Diesel details failed: ' + dieselError.message);
     }
+
+    if (isAdBlue) {
+      const { error: adblueError } = await supabase.from('adblue_expenses').insert({
+        trip_expense_id: inserted.id,
+        trip_id: trip.id,
+        expense_date: expForm.expense_date,
+        litres: parseFloat(expForm.adblue_litres) || null,
+        amount: finalAmount,
+        km_reading: parseFloat(expForm.adblue_km_reading) || null,
+        bill_photo: expForm.adblue_bill_photo || null,
+        tank_photo: expForm.adblue_tank_photo || null,
+      });
+      if (adblueError) toast('error', 'AdBlue details failed: ' + adblueError.message);
+    }
+
+    toast('success', 'Expense added');
+    setShowExpModal(false);
+    fetchExpenses();
+    setExpForm({
+      expense_date: new Date().toISOString().split('T')[0],
+      category: 'Diesel', amount: '', paid_by: 'Company', notes: '', advance_amount: '',
+      bunk_name: '', litres: '', rate: '', km_reading: '', bill_photo: '', meter_photo: '',
+      adblue_litres: '', adblue_amount: '', adblue_km_reading: '', adblue_bill_photo: '', adblue_tank_photo: '',
+    });
   };
 
   const deleteExpense = async (id: string) => {
@@ -1425,7 +1489,7 @@ const PhotoPreview = ({
               <table className="w-full text-[11px]">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-100 bg-gray-50">
-                    {['Date','Category','Amount','Advance','Paid By','Notes',''].map(h => (
+                    {['Date','Category','Amount','Advance','Paid By','Notes','Docs',''].map(h => (
                       <th key={h} className="text-left px-2 py-1.5 font-medium">{h}</th>
                     ))}
                   </tr>
@@ -1441,6 +1505,41 @@ const PhotoPreview = ({
                       </td>
                       <td className="px-2 py-1.5 text-gray-500">{e.paid_by}</td>
                       <td className="px-2 py-1.5 text-gray-400">{e.notes || '—'}</td>
+                      <td className="px-2 py-1.5">
+                        {e.category === 'Diesel' && (e.diesel_expenses?.bill_photo || e.diesel_expenses?.meter_photo) ? (
+                          <div className="flex gap-2">
+                            {e.diesel_expenses.bill_photo && (
+                              <button onClick={() => openStepDoc(e.diesel_expenses.bill_photo, DIESEL_BUCKET)}
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px]">
+                                <ExternalLink size={10} /> Bill
+                              </button>
+                            )}
+                            {e.diesel_expenses.meter_photo && (
+                              <button onClick={() => openStepDoc(e.diesel_expenses.meter_photo, DIESEL_BUCKET)}
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px]">
+                                <ExternalLink size={10} /> Meter
+                              </button>
+                            )}
+                          </div>
+                        ) : e.category === 'AdBlue' && (e.adblue_expenses?.bill_photo || e.adblue_expenses?.tank_photo) ? (
+                          <div className="flex gap-2">
+                            {e.adblue_expenses.bill_photo && (
+                              <button onClick={() => openStepDoc(e.adblue_expenses.bill_photo, ADBLUE_BUCKET)}
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px]">
+                                <ExternalLink size={10} /> Bill
+                              </button>
+                            )}
+                            {e.adblue_expenses.tank_photo && (
+                              <button onClick={() => openStepDoc(e.adblue_expenses.tank_photo, ADBLUE_BUCKET)}
+                                className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-[10px]">
+                                <ExternalLink size={10} /> Tank
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                       <td className="px-2 py-1.5">
                         <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500">
                           <Trash2 size={11} />
@@ -1491,9 +1590,135 @@ const PhotoPreview = ({
                     <button onClick={() => setShowExpModal(false)}><X size={14} className="text-gray-400" /></button>
                   </div>
                   <div className="space-y-3">
-                    <div><label className="text-[11px] text-gray-500 block mb-1">Date</label>
-                      <input type="date" value={expForm.expense_date} onChange={e => setExpForm(p => ({ ...p, expense_date: e.target.value }))} className={panelInputCls} />
-                    </div>
+                    {expForm.category === 'Diesel' ? (
+                      <>
+                        <div><label className="text-[11px] text-gray-500 block mb-1">Bunk Name</label>
+                          <input value={expForm.bunk_name} onChange={e => setExpForm(p => ({ ...p, bunk_name: e.target.value }))} placeholder="e.g. IOC Bunk, Salem" className={panelInputCls} />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div><label className="text-[11px] text-gray-500 block mb-1">Litres</label>
+                            <input type="number" value={expForm.litres} onChange={e => setExpForm(p => ({ ...p, litres: e.target.value }))} placeholder="0" className={panelInputCls} />
+                          </div>
+                          <div><label className="text-[11px] text-gray-500 block mb-1">Rate (₹/L)</label>
+                            <input type="number" value={expForm.rate} onChange={e => setExpForm(p => ({ ...p, rate: e.target.value }))} placeholder="0" className={panelInputCls} />
+                          </div>
+                        </div>
+
+                        <div className="bg-blue-50 rounded-lg px-3 py-2 text-[11px]">
+                          <span className="text-gray-500">Amount: </span>
+                          <span className="font-bold text-blue-600">
+                            ₹ {(parseFloat(expForm.litres || '0') * parseFloat(expForm.rate || '0')).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+
+                        <div><label className="text-[11px] text-gray-500 block mb-1">KM Reading</label>
+                          <input type="number" value={expForm.km_reading} onChange={e => setExpForm(p => ({ ...p, km_reading: e.target.value }))} placeholder="Odometer reading" className={panelInputCls} />
+                        </div>
+
+                        {/* Bill photo */}
+                        <div>
+                          <label className="text-[11px] text-gray-500 block mb-1">Bill Photo</label>
+                          <div className="flex items-center gap-2">
+                            <label className={`flex-1 flex items-center gap-2 cursor-pointer border border-dashed rounded-lg px-3 py-2
+                              ${expUploading === 'bill_photo' ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                              {expUploading === 'bill_photo' ? <Loader2 size={12} className="text-blue-500 animate-spin" /> : <Upload size={12} className="text-gray-400" />}
+                              <span className="text-[11px] text-gray-500 truncate max-w-[160px]">
+                                {expUploading === 'bill_photo' ? 'Uploading…' : expForm.bill_photo ? expForm.bill_photo.split('/').pop() : 'Upload bill'}
+                              </span>
+                              <input type="file" className="hidden" disabled={expUploading !== null}
+                                onChange={async e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const path = await uploadExpenseFile(file, 'bill_photo', DIESEL_BUCKET, trip.id);
+                                  if (path) setExpForm(p => ({ ...p, bill_photo: path }));
+                                }} />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Meter photo */}
+                        <div>
+                          <label className="text-[11px] text-gray-500 block mb-1">Meter Photo</label>
+                          <div className="flex items-center gap-2">
+                            <label className={`flex-1 flex items-center gap-2 cursor-pointer border border-dashed rounded-lg px-3 py-2
+                              ${expUploading === 'meter_photo' ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                              {expUploading === 'meter_photo' ? <Loader2 size={12} className="text-blue-500 animate-spin" /> : <Upload size={12} className="text-gray-400" />}
+                              <span className="text-[11px] text-gray-500 truncate max-w-[160px]">
+                                {expUploading === 'meter_photo' ? 'Uploading…' : expForm.meter_photo ? expForm.meter_photo.split('/').pop() : 'Upload meter photo'}
+                              </span>
+                              <input type="file" className="hidden" disabled={expUploading !== null}
+                                onChange={async e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const path = await uploadExpenseFile(file, 'meter_photo', DIESEL_BUCKET, trip.id);
+                                  if (path) setExpForm(p => ({ ...p, meter_photo: path }));
+                                }} />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    ) : expForm.category === 'AdBlue' ? (
+                      <>
+                        <div><label className="text-[11px] text-gray-500 block mb-1">Litres</label>
+                          <input type="number" value={expForm.adblue_litres} onChange={e => setExpForm(p => ({ ...p, adblue_litres: e.target.value }))} placeholder="0" className={panelInputCls} />
+                        </div>
+
+                        <div><label className="text-[11px] text-gray-500 block mb-1">Amount (₹)</label>
+                          <input type="number" value={expForm.adblue_amount} onChange={e => setExpForm(p => ({ ...p, adblue_amount: e.target.value }))} placeholder="0" className={panelInputCls} />
+                        </div>
+
+                        <div><label className="text-[11px] text-gray-500 block mb-1">KM Reading</label>
+                          <input type="number" value={expForm.adblue_km_reading} onChange={e => setExpForm(p => ({ ...p, adblue_km_reading: e.target.value }))} placeholder="Odometer reading" className={panelInputCls} />
+                        </div>
+
+                        {/* Bill photo */}
+                        <div>
+                          <label className="text-[11px] text-gray-500 block mb-1">Bill Photo</label>
+                          <div className="flex items-center gap-2">
+                            <label className={`flex-1 flex items-center gap-2 cursor-pointer border border-dashed rounded-lg px-3 py-2
+                              ${expUploading === 'adblue_bill_photo' ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                              {expUploading === 'adblue_bill_photo' ? <Loader2 size={12} className="text-blue-500 animate-spin" /> : <Upload size={12} className="text-gray-400" />}
+                              <span className="text-[11px] text-gray-500 truncate max-w-[160px]">
+                                {expUploading === 'adblue_bill_photo' ? 'Uploading…' : expForm.adblue_bill_photo ? expForm.adblue_bill_photo.split('/').pop() : 'Upload bill'}
+                              </span>
+                              <input type="file" className="hidden" disabled={expUploading !== null}
+                                onChange={async e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const path = await uploadExpenseFile(file, 'adblue_bill_photo', ADBLUE_BUCKET, trip.id);
+                                  if (path) setExpForm(p => ({ ...p, adblue_bill_photo: path }));
+                                }} />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Tank photo */}
+                        <div>
+                          <label className="text-[11px] text-gray-500 block mb-1">Tank Photo</label>
+                          <div className="flex items-center gap-2">
+                            <label className={`flex-1 flex items-center gap-2 cursor-pointer border border-dashed rounded-lg px-3 py-2
+                              ${expUploading === 'adblue_tank_photo' ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                              {expUploading === 'adblue_tank_photo' ? <Loader2 size={12} className="text-blue-500 animate-spin" /> : <Upload size={12} className="text-gray-400" />}
+                              <span className="text-[11px] text-gray-500 truncate max-w-[160px]">
+                                {expUploading === 'adblue_tank_photo' ? 'Uploading…' : expForm.adblue_tank_photo ? expForm.adblue_tank_photo.split('/').pop() : 'Upload tank photo'}
+                              </span>
+                              <input type="file" className="hidden" disabled={expUploading !== null}
+                                onChange={async e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const path = await uploadExpenseFile(file, 'adblue_tank_photo', ADBLUE_BUCKET, trip.id);
+                                  if (path) setExpForm(p => ({ ...p, adblue_tank_photo: path }));
+                                }} />
+                            </label>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div><label className="text-[11px] text-gray-500 block mb-1">Amount (₹)</label>
+                        <input type="number" value={expForm.amount} onChange={e => setExpForm(p => ({ ...p, amount: e.target.value }))} placeholder="0" className={panelInputCls} />
+                      </div>
+                    )}
                     <div><label className="text-[11px] text-gray-500 block mb-1">Category</label>
                       <select value={expForm.category} onChange={e => setExpForm(p => ({ ...p, category: e.target.value }))} className={panelInputCls}>
                         {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
