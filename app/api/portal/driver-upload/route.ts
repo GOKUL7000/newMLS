@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const TRIP_BUCKET = 'Trips';
+const ALLOWED_BUCKETS = ['Trips', 'Diesel', 'Adblue'] as const;
 
 export async function POST(req: NextRequest) {
   const session = await getPortalSession(req);
@@ -21,9 +21,18 @@ export async function POST(req: NextRequest) {
   const tripId = formData.get('tripId') as string | null;
   const tripNo = formData.get('tripNo') as string | null;
   const fieldName = (formData.get('fieldName') as string | null) || 'doc';
+  const bucketParam = (formData.get('bucket') as string | null) || 'Trips';
 
-  if (!file || !tripId || !tripNo) {
-    return NextResponse.json({ error: 'file, tripId and tripNo are required' }, { status: 400 });
+  if (!ALLOWED_BUCKETS.includes(bucketParam as any)) {
+    return NextResponse.json({ error: 'Invalid bucket' }, { status: 400 });
+  }
+  const bucket = bucketParam as typeof ALLOWED_BUCKETS[number];
+
+  if (!file || !tripId) {
+    return NextResponse.json({ error: 'file and tripId are required' }, { status: 400 });
+  }
+  if (bucket === 'Trips' && !tripNo) {
+    return NextResponse.json({ error: 'tripNo is required for Trips bucket uploads' }, { status: 400 });
   }
 
   // Verify the trip belongs to this driver before allowing upload.
@@ -38,10 +47,14 @@ export async function POST(req: NextRequest) {
   }
 
   const ext = file.name.split('.').pop();
-  const path = `${tripNo}/${fieldName}_${Date.now()}.${ext}`;
+  // Trips bucket is organized by trip_no (matches existing driver trip docs);
+  // Diesel/Adblue buckets are organized by trip.id (matches the admin panel's
+  // uploadExpenseFile pattern: `${trip.id}/${field}_${timestamp}.${ext}`).
+  const folder = bucket === 'Trips' ? tripNo : tripId;
+  const path = `${folder}/${fieldName}_${Date.now()}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  const { error } = await supabaseAdmin.storage.from(TRIP_BUCKET).upload(path, buffer, {
+  const { error } = await supabaseAdmin.storage.from(bucket).upload(path, buffer, {
     upsert: true,
     contentType: file.type,
   });
